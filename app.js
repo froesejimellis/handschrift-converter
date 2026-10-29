@@ -95,23 +95,31 @@ let ed=null,cur=null,missingSession=null;const ink=$('#ink'),gd=$('#gd');
 const XS='aceimnorsuvwxzäöü',DS='gjpqy',TS='bdfhklABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜß0123456789!?',DL='ijäöüÄÖÜ',DOT={i:1,j:1,ä:2,ö:2,ü:2,Ä:2,Ö:2,Ü:2,':':1,';':1,'!':1,'?':1,'"':1},TX=48,TA=84;
 const MSGDOT='Fremde Punkte gefunden (rot markiert). Bitte wegradieren („Rückgängig“) oder „Fremde Punkte automatisch entfernen“ einschalten.';
 function edit(id,startingIndex=null){const f=S.fonts.find(x=>x.id==id);if(!f)return;const i=f.words.findIndex((w,k)=>!f.slots[k]);ed={f,i:startingIndex===null?(i<0?0:i):startingIndex,st:[]};$('#ed').classList.remove('hide');show();$('#ed').scrollIntoView()}
+// Sonderzeichen erhalten genauso wie Buchstaben drei unabhängig gespeicherte Schreibproben.
+const isSpecial=ch=>/[\p{P}\p{S}]/u.test(ch);
 function addMissingToFont(f,chars){
- const seen=new Set();const added=[];
- for(const ch of chars){if(/\s/u.test(ch)||seen.has(ch))continue;seen.add(ch);
-  if(counts(f)[ch])continue;
-  // Ein-Zeichen-Aufgaben erhalten die bisherigen Schriftproben unverändert.
-  let idx=f.words.findIndex((w,k)=>w===ch&&!(f.slots[k]||[])[0]);
-  if(idx<0){idx=f.words.length;f.words.push(ch)}
-  added.push({ch,idx});
+ const entries=[];
+ for(const ch of new Set(chars)){
+  if(/\s/u.test(ch))continue;
+  let have=counts(f)[ch]||0;
+  // Vorhandene unbeschriebene Ein-Zeichen-Felder zuerst verwenden.
+  for(let k=0;k<f.words.length&&have<3;k++){
+   if(f.words[k]!==ch||f.slots[k]?.[0])continue;
+   entries.push({ch,idx:k});have++;
+  }
+  while(have<3){const idx=f.words.length;f.words.push(ch);entries.push({ch,idx});have++}
  }
- return added;
+ return entries;
 }
-function missingForText(f,txt){const c=counts(f);return [...new Set([...txt].filter(ch=>!(/\s/u.test(ch))&&!c[ch]&&!c[ch.toLowerCase()]&&!c[ch.toUpperCase()]))]}
+function missingForText(f,txt){const c=counts(f);return [...new Set([...txt].filter(ch=>
+ !(/\s/u.test(ch)) && (isSpecial(ch)?(c[ch]||0)<3:!c[ch]&&!c[ch.toLowerCase()]&&!c[ch.toUpperCase()])
+))]}
+function nextMissingTask(f,chars){return f.words.findIndex((w,k)=>chars.includes(w)&&!(f.slots[k]||[])[0]);}
 function beginMissing(){const f=S.fonts.find(x=>x.id==$('#fsel').value);if(!f)return;
  const missing=missingForText(f,$('#txt').value);if(!missing.length){render();return}
  const entries=addMissingToFont(f,missing);if(!entries.length)return;
  missingSession={id:f.id,chars:missing};save();lists();switchTab('fonts');edit(f.id,entries[0].idx);
- $('#msg').textContent='Schreibe die fehlenden Zeichen. Mit „Speichern & weiter“ gehst du zum nächsten. Mit „Zurück zum Text“ kannst du anschließend neu umwandeln.';
+ $('#msg').textContent='Schreibe jedes fehlende Sonderzeichen dreimal (Variante 1, 2 und 3). Mit „Speichern & weiter“ gehst du zur nächsten Schreibprobe.';
 }
 $('#addmissing').onclick=beginMissing;
 $('#backtowrite').onclick=()=>{if(ed){const r=grab();if(ed.st.length){if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return}ed.f.slots[ed.i]=r.arr;save();}}ed=null;$('#ed').classList.add('hide');missingSession=null;lists();switchTab('write');render()};
@@ -122,7 +130,8 @@ function mark(st){guides();const g=gd.getContext('2d');g.setTransform(1,0,0,1,0,
 function show(){const{f,i}=ed,n=[...f.words[i]].length;ed.st=[];
 ink.width=gd.width=n*CW*K;ink.height=gd.height=CH*K;
 const cv=$('#cv');cv.style.width=n*CW+'px';cv.style.aspectRatio=`${n*CW}/${CH}`;guides();
-$('#wt').textContent=`Wort ${i+1} von ${f.words.length}: ${f.words[i]}${f.slots[i]?'  (✓ gespeichert – neu schreiben überschreibt)':''}`;
+const ch=f.words[i],special=isSpecial(ch)&&[...ch].length===1;const variant=special?f.words.slice(0,i+1).filter(w=>w===ch).length:0;
+$('#wt').textContent=`${special?'Sonderzeichen '+ch+' – Variante '+variant+' von '+Math.max(3,f.words.filter(w=>w===ch).length):'Wort '+(i+1)+' von '+f.words.length+': '+ch}${f.slots[i]?'  (✓ gespeichert – neu schreiben überschreibt)':''}`;
 $('#wj').innerHTML=f.words.map((x,k)=>`<option value="${k}">${f.slots[k]?'✓ ':''}${k+1}. ${esc(x)}</option>`).join('');$('#wj').value=i;cover()}
 function counts(f){const c={};f.words.forEach((w,k)=>{const s=f.slots[k];[...w].forEach((ch,j)=>{if(s&&s[j])c[ch]=(c[ch]||0)+1})});return c}
 function cover(){const c=counts(ed.f);$('#cov').innerHTML=[...new Set([...CHARS,...Object.keys(c)])].map(ch=>`<span class="chip ${(c[ch]||0)>=3?'ok':''}">${esc(ch)} ${c[ch]||0}</span>`).join('')}
@@ -195,7 +204,7 @@ return{arr,st}}
 function go(k){if(!ed)return;let n=0;
 if(ed.st.length){const r=grab();if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return}
 ed.f.slots[ed.i]=r.arr;n=r.st.reduce((a,s)=>a+s.n,0);save();lists()}
-if(missingSession?.id===ed.f.id&&k>ed.i){const next=missingSession.chars.find(ch=>!counts(ed.f)[ch]);if(next){const idx=ed.f.words.findIndex((w,j)=>w===next&&!(ed.f.slots[j]||[])[0]);if(idx>=0)k=idx}}
+if(missingSession?.id===ed.f.id&&k>ed.i){const idx=nextMissingTask(ed.f,missingSession.chars);if(idx>=0)k=idx}
 ed.i=Math.max(0,Math.min(ed.f.words.length-1,k));show();$('#msg').textContent=n?n+' fremde(r) Punkt(e) automatisch entfernt.':''}
 $('#nx').onclick=()=>go(ed.i+1);$('#pv').onclick=()=>go(ed.i-1);$('#wj').onchange=e=>go(+e.target.value);
 $('#ck').onclick=()=>{if(!ed)return;const r=grab();if(r.st.length){mark(r.st);$('#msg').textContent=r.st.reduce((a,s)=>a+s.n,0)+' fremde(r) Punkt(e) gefunden und rot markiert.'}else{guides();$('#msg').textContent='Keine fremden Punkte gefunden.'}};
@@ -219,10 +228,10 @@ g.stroke()}
 function showMissing(f,chars){
  const panel=$('#missingpanel'),list=$('#missingchars');
  if(!chars.length){panel.classList.add('hide');return}
- list.textContent=chars.map(c=>c===' '?'[Leerzeichen]':c).join('  ');
+ const cc=counts(f);list.textContent=chars.map(c=>isSpecial(c)?`${c} (${cc[c]||0}/3 Varianten)`:c===' '?'[Leerzeichen]':c).join('  ');
  $('#addmissing').disabled=!!f.builtin;
  $('#addmissing').textContent=f.builtin?'Eigene Handschrift wählen':'Fehlende Zeichen jetzt schreiben';
- $('#missinghint').textContent=f.builtin?'Eingebaute Handschriften können nicht bearbeitet werden. Lege unter „Handschriften“ eine eigene an.':'Diese Zeichen fehlen noch und wurden beim Umwandeln übersprungen. Ergänze sie direkt in deiner Handschrift.';
+ $('#missinghint').textContent=f.builtin?'Eingebaute Handschriften können nicht bearbeitet werden. Lege unter „Handschriften“ eine eigene an.':'Fehlende Zeichen kannst du ergänzen. Für jedes Sonderzeichen stehen drei unabhängig gespeicherte Varianten zur Verfügung; bereits geschriebene bleiben erhalten.';
  panel.classList.remove('hide');
 }
 async function render(){
