@@ -42,7 +42,6 @@ Deine Anna</textarea>
 <button id="go" class="pri">In Handschrift umwandeln</button>
 <p><small>Zum Speichern: Bild gedrückt halten (Handy) oder Rechtsklick → „Bild speichern unter“.</small></p>
 </div>
-<div id="missing" class="card hide" role="status" aria-live="polite"></div>
 <div id="pages"></div>
 </section>
 
@@ -63,7 +62,8 @@ Deine Anna</textarea>
 <div class="row"><select id="wj" style="max-width:260px"></select><label style="flex-direction:row;align-items:center">Stiftdicke <input type="range" id="pen" min="3" max="9" value="5"></label></div>
 <div class="cv" id="cv"><canvas id="gd"></canvas><canvas id="ink"></canvas></div>
 <div class="row"><button id="un">Rückgängig</button><button id="cl">Leeren</button><button id="pv">← Zurück</button><button id="nx" class="pri">Speichern &amp; weiter →</button><button id="dn">Fertig</button></div>
-<small>Jeden Buchstaben in sein Kästchen schreiben, auf der Linie. Grün = Zeichen hat mindestens 3 Varianten.</small>
+<small>Jeden Buchstaben in sein Kästchen schreiben, auf der Linie. Kästchen darfst du leer lassen – Lücken kannst du jederzeit nachtragen („Nächste Lücke“ oder unten aufs Zeichen tippen). Graue Schrift = schon gespeichert, bleibt erhalten, solange du nicht drüberschreibst. Grün = mindestens 3 Varianten.</small>
+<div class="row"><button id="gap">Nächste Lücke →</button><input type="text" id="xc" placeholder="Weitere Zeichen, z. B. +*=/@#%&amp;€" style="max-width:280px"><button id="xa">Zeichen hinzufügen</button></div>
 <div id="cov"></div>
 </div>
 </section>

@@ -17,7 +17,7 @@ textarea{width:100%;min-height:150px;background:var(--bg);border:1px solid var(-
 label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--mut)}
 select,input[type=text],input[type=number]{background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:6px;width:100%}
 .hide{display:none}
-.chip{display:inline-block;min-width:34px;text-align:center;margin:2px;padding:2px 5px;border-radius:6px;font-size:13px;background:#c0392b44}
+.chip{display:inline-block;min-width:34px;text-align:center;margin:2px;padding:2px 5px;border-radius:6px;font-size:13px;background:#c0392b44;cursor:pointer}
 .chip.ok{background:#2e8b5755}
 .cv{position:relative;background:#fff;max-width:100%;margin:8px 0}
 .cv canvas{position:absolute;left:0;top:0;width:100%;height:100%;touch-action:none}
