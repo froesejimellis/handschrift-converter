@@ -58,6 +58,7 @@ $('#stability').addEventListener('input',saveStabilizer);
 
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x==b));['write','fonts','bgs'].forEach(t=>$('#'+t).classList.toggle('hide',t!=b.dataset.t))});
 
+const switchTab=t=>document.querySelector(`.tabs button[data-t="${t}"]`)?.click();
 const done=f=>Object.values(f.slots).reduce((a,s)=>a+s.filter(Boolean).length,0),total=f=>f.words.reduce((a,w)=>a+[...w].length,0);
 function lists(){
 const fs=$('#fsel'),bs=$('#bsel'),pf=fs.value,pb=bs.value;
@@ -90,35 +91,41 @@ $('#bf').onchange=async e=>{for(const f of e.target.files){const im=await loadIm
 $('#nf').onclick=()=>{const f={id:'f'+Date.now(),name:$('#fname').value.trim()||'Meine Schrift',words:makeWords(),slots:{}};S.fonts.push(f);$('#fname').value='';save();lists();edit(f.id)};
 
 /* Editor */
-let ed=null,cur=null;const ink=$('#ink'),gd=$('#gd');
+let ed=null,cur=null,missingSession=null;const ink=$('#ink'),gd=$('#gd');
 const XS='aceimnorsuvwxzäöü',DS='gjpqy',TS='bdfhklABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜß0123456789!?',DL='ijäöüÄÖÜ',DOT={i:1,j:1,ä:2,ö:2,ü:2,Ä:2,Ö:2,Ü:2,':':1,';':1,'!':1,'?':1,'"':1},TX=48,TA=84;
 const MSGDOT='Fremde Punkte gefunden (rot markiert). Bitte wegradieren („Rückgängig“) oder „Fremde Punkte automatisch entfernen“ einschalten.';
-function edit(id){const f=S.fonts.find(x=>x.id==id);if(!f)return;const i=f.words.findIndex((w,k)=>!f.slots[k]);ed={f,i:i<0?0:i,st:[]};$('#ed').classList.remove('hide');show();$('#ed').scrollIntoView()}
+function edit(id,startingIndex=null){const f=S.fonts.find(x=>x.id==id);if(!f)return;const i=f.words.findIndex((w,k)=>!f.slots[k]);ed={f,i:startingIndex===null?(i<0?0:i):startingIndex,st:[]};$('#ed').classList.remove('hide');show();$('#ed').scrollIntoView()}
+function addMissingToFont(f,chars){
+ const seen=new Set();const added=[];
+ for(const ch of chars){if(/\s/u.test(ch)||seen.has(ch))continue;seen.add(ch);
+  if(counts(f)[ch])continue;
+  // Ein-Zeichen-Aufgaben erhalten die bisherigen Schriftproben unverändert.
+  let idx=f.words.findIndex((w,k)=>w===ch&&!(f.slots[k]||[])[0]);
+  if(idx<0){idx=f.words.length;f.words.push(ch)}
+  added.push({ch,idx});
+ }
+ return added;
+}
+function missingForText(f,txt){const c=counts(f);return [...new Set([...txt].filter(ch=>!(/\s/u.test(ch))&&!c[ch]&&!c[ch.toLowerCase()]&&!c[ch.toUpperCase()]))]}
+function beginMissing(){const f=S.fonts.find(x=>x.id==$('#fsel').value);if(!f)return;
+ const missing=missingForText(f,$('#txt').value);if(!missing.length){render();return}
+ const entries=addMissingToFont(f,missing);if(!entries.length)return;
+ missingSession={id:f.id,chars:missing};save();lists();switchTab('fonts');edit(f.id,entries[0].idx);
+ $('#msg').textContent='Schreibe die fehlenden Zeichen. Mit „Speichern & weiter“ gehst du zum nächsten. Mit „Zurück zum Text“ kannst du anschließend neu umwandeln.';
+}
+$('#addmissing').onclick=beginMissing;
+$('#backtowrite').onclick=()=>{if(ed){const r=grab();if(ed.st.length){if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return}ed.f.slots[ed.i]=r.arr;save();}}ed=null;$('#ed').classList.add('hide');missingSession=null;lists();switchTab('write');render()};
 function guides(){const{f,i}=ed,w=[...f.words[i]],g=gd.getContext('2d');g.setTransform(K,0,0,K,0,0);g.clearRect(0,0,gd.width,gd.height);g.strokeStyle='#8886';g.fillStyle='#888';g.font='14px sans-serif';g.setLineDash([]);
 w.forEach((c,k)=>{g.strokeRect(k*CW+.5,.5,CW-1,CH-1);g.beginPath();g.moveTo(k*CW,BASE);g.lineTo(k*CW+CW,BASE);g.stroke();g.fillText(c,k*CW+6,18)});
-g.setLineDash([3,4]);g.beginPath();for(let k=0;k<w.length;k++){g.moveTo(k*CW,BASE-TX);g.lineTo(k*CW+CW,BASE-TX)}g.stroke();g.setLineDash([]);ghost(f,i)}
+g.setLineDash([3,4]);g.beginPath();for(let k=0;k<w.length;k++){g.moveTo(k*CW,BASE-TX);g.lineTo(k*CW+CW,BASE-TX)}g.stroke();g.setLineDash([])}
 function mark(st){guides();const g=gd.getContext('2d');g.setTransform(1,0,0,1,0,0);g.strokeStyle='#e11';g.lineWidth=2*K;for(const s of st)for(const b of s.b)g.strokeRect(s.i*CW*K+b[0]-5,b[1]-5,b[2]-b[0]+10,b[3]-b[1]+10)}
 function show(){const{f,i}=ed,n=[...f.words[i]].length;ed.st=[];
 ink.width=gd.width=n*CW*K;ink.height=gd.height=CH*K;
 const cv=$('#cv');cv.style.width=n*CW+'px';cv.style.aspectRatio=`${n*CW}/${CH}`;guides();
-const have=(f.slots[i]||[]).filter(Boolean).length;$('#wt').textContent=`Wort ${i+1} von ${f.words.length}: ${f.words[i]}${have?`  (${have}/${n} vorhanden – graue bleiben erhalten, neu geschriebene ersetzen)`:''}`;
-$('#wj').innerHTML=f.words.map((x,k)=>`<option value="${k}">${wst(f,k)}${k+1}. ${esc(x)}</option>`).join('');$('#wj').value=i;cover()}
+$('#wt').textContent=`Wort ${i+1} von ${f.words.length}: ${f.words[i]}${f.slots[i]?'  (✓ gespeichert – neu schreiben überschreibt)':''}`;
+$('#wj').innerHTML=f.words.map((x,k)=>`<option value="${k}">${f.slots[k]?'✓ ':''}${k+1}. ${esc(x)}</option>`).join('');$('#wj').value=i;cover()}
 function counts(f){const c={};f.words.forEach((w,k)=>{const s=f.slots[k];[...w].forEach((ch,j)=>{if(s&&s[j])c[ch]=(c[ch]||0)+1})});return c}
-function cover(){const c=counts(ed.f),all=[...new Set([...CHARS,...ed.f.words.join('')])];$('#cov').innerHTML=all.map(ch=>`<span class="chip ${(c[ch]||0)>=3?'ok':''}" data-c="${esc(ch)}">${esc(ch)} ${c[ch]||0}</span>`).join('')}
-const wst=(f,k)=>{const s=f.slots[k],n=[...f.words[k]].length,h=s?s.filter(Boolean).length:0;return h?(h>=n?'✓ ':'◐ '):''};
-async function ghost(f,i){const s=f.slots[i];if(!s)return;const t=ed.gt=(ed.gt||0)+1,g=gd.getContext('2d');for(const[j,o]of s.entries()){if(!o)continue;const im=await loadImg(o.d);if(!im||!ed||ed.f!=f||ed.i!=i||ed.gt!=t)return;g.save();g.setTransform(K,0,0,K,0,0);g.globalAlpha=.3;g.drawImage(im,j*CW+(CW-o.w)/2,BASE+o.dy-o.h,o.w,o.h);g.restore()}}
-function commit(){if(!ed.st.length)return true;const r=grab();if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return false}ed.f.slots[ed.i]=r.arr;ed.st=[];save();lists();return true}
-const unf=(f,k,ch)=>[...f.words[k]].some((c,j)=>(!ch||c==ch)&&!(f.slots[k]&&f.slots[k][j]));
-function toChar(ch){if(!commit())return;const f=ed.f;let k=f.words.findIndex((w,i)=>unf(f,i,ch));
-if(k<0){if((counts(f)[ch]||0)<3){f.words.push(ch.repeat(3));save()}k=f.words.findIndex(w=>[...w].includes(ch))}
-go(k)}
-function addChars(str){if(!commit())return;const f=ed.f,have={};f.words.forEach(w=>[...w].forEach(c=>have[c]=(have[c]||0)+1));
-const cs=[...new Set([...str].filter(c=>c.trim()))];let rest=[];for(const c of cs)for(let n=have[c]||0;n<3;n++)rest.push(c);
-const first=f.words.length;for(let i=0;i<rest.length;i+=6)f.words.push(rest.slice(i,i+6).join(''));
-if(rest.length){save();lists();go(first)}else if(cs.length)toChar(cs[0]);$('#xc').value=''}
-function gap(){if(!commit())return;const f=ed.f,n=f.words.length;for(let d=1;d<=n;d++){const k=(ed.i+d)%n;if(unf(f,k))return go(k)}$('#msg').textContent='Keine Lücken mehr – alle Kästchen sind beschrieben. 🎉'}
-$('#cov').onclick=e=>{const c=e.target.closest('.chip');if(c&&ed)toChar(c.dataset.c)};
-$('#xa').onclick=()=>ed&&addChars($('#xc').value);$('#gap').onclick=()=>ed&&gap();
+function cover(){const c=counts(ed.f);$('#cov').innerHTML=[...new Set([...CHARS,...Object.keys(c)])].map(ch=>`<span class="chip ${(c[ch]||0)>=3?'ok':''}">${esc(ch)} ${c[ch]||0}</span>`).join('')}
 const pt=e=>{const r=ink.getBoundingClientRect();return[(e.clientX-r.left)*ink.width/r.width,(e.clientY-r.top)*ink.height/r.height]};
 // Glättung als adaptiver Tiefpass: geringere Verzögerung bei schnellen Bewegungen.
 // Rohpunkte bleiben erhalten; geglättet wird nur der gezeichnete Strich.
@@ -183,15 +190,16 @@ const og=o.getContext('2d');og.imageSmoothingQuality='high';og.drawImage(cv,x0,y
 return{g:{d:o.toDataURL(),w:o.width/kk,h:o.height/kk,dy},strays}}
 function grab(){const rm=$('#rm').checked,nm=$('#nm').checked,arr=[],st=[];
 [...ed.f.words[ed.i]].forEach((ch,i)=>{const t=document.createElement('canvas');t.width=CW*K;t.height=CH*K;t.getContext('2d').drawImage(ink,i*CW*K,0,CW*K,CH*K,0,0,CW*K,CH*K);
-const r=process(t,ch,K,rm,nm);arr.push(r.g||(ed.f.slots[ed.i]||[])[i]||null);if(r.strays.length)st.push({i,ch,n:r.strays.length,b:r.strays.map(c=>[c.x0,c.y0,c.x1,c.y1])})});
+const r=process(t,ch,K,rm,nm);arr.push(r.g);if(r.strays.length)st.push({i,ch,n:r.strays.length,b:r.strays.map(c=>[c.x0,c.y0,c.x1,c.y1])})});
 return{arr,st}}
 function go(k){if(!ed)return;let n=0;
 if(ed.st.length){const r=grab();if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return}
 ed.f.slots[ed.i]=r.arr;n=r.st.reduce((a,s)=>a+s.n,0);save();lists()}
+if(missingSession?.id===ed.f.id&&k>ed.i){const next=missingSession.chars.find(ch=>!counts(ed.f)[ch]);if(next){const idx=ed.f.words.findIndex((w,j)=>w===next&&!(ed.f.slots[j]||[])[0]);if(idx>=0)k=idx}}
 ed.i=Math.max(0,Math.min(ed.f.words.length-1,k));show();$('#msg').textContent=n?n+' fremde(r) Punkt(e) automatisch entfernt.':''}
 $('#nx').onclick=()=>go(ed.i+1);$('#pv').onclick=()=>go(ed.i-1);$('#wj').onchange=e=>go(+e.target.value);
 $('#ck').onclick=()=>{if(!ed)return;const r=grab();if(r.st.length){mark(r.st);$('#msg').textContent=r.st.reduce((a,s)=>a+s.n,0)+' fremde(r) Punkt(e) gefunden und rot markiert.'}else{guides();$('#msg').textContent='Keine fremden Punkte gefunden.'}};
-$('#dn').onclick=()=>{if(!ed)return;if(ed.st.length){const r=grab();if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return}ed.f.slots[ed.i]=r.arr;save()}ed=null;$('#ed').classList.add('hide');lists()};
+$('#dn').onclick=()=>{if(!ed)return;if(ed.st.length){const r=grab();if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return}ed.f.slots[ed.i]=r.arr;save()}ed=null;$('#ed').classList.add('hide');lists();if(missingSession){missingSession=null;switchTab('write');render()}};
 $('#rn').onclick=async()=>{if(!ed)return;$('#msg').textContent='Gleiche an …';let n=0;const f=ed.f;
 for(const[k,w]of f.words.entries()){const s=f.slots[k];if(!s)continue;
 for(const[j,ch]of[...w].entries()){const gl=s[j];if(!gl)continue;const im=await loadImg(gl.d);if(!im)continue;
@@ -208,12 +216,21 @@ g.strokeStyle='#a9c1da';g.lineWidth=1.5;g.beginPath();
 if(type=='lined')for(let y=m.t+lh+6;y<H-m.b+10;y+=lh){g.moveTo(m.l-20,y);g.lineTo(PW-m.r+20,y)}
 if(type=='grid'){const st=lh/2;for(let y=m.t;y<H;y+=st){g.moveTo(0,y);g.lineTo(PW,y)}for(let x=0;x<PW;x+=st){g.moveTo(x,0);g.lineTo(x,H)}}
 g.stroke()}
+function showMissing(f,chars){
+ const panel=$('#missingpanel'),list=$('#missingchars');
+ if(!chars.length){panel.classList.add('hide');return}
+ list.textContent=chars.map(c=>c===' '?'[Leerzeichen]':c).join('  ');
+ $('#addmissing').disabled=!!f.builtin;
+ $('#addmissing').textContent=f.builtin?'Eigene Handschrift wählen':'Fehlende Zeichen jetzt schreiben';
+ $('#missinghint').textContent=f.builtin?'Eingebaute Handschriften können nicht bearbeitet werden. Lege unter „Handschriften“ eine eigene an.':'Diese Zeichen fehlen noch und wurden beim Umwandeln übersprungen. Ergänze sie direkt in deiner Handschrift.';
+ panel.classList.remove('hide');
+}
 async function render(){
-const btn=$('#go'),out=$('#pages');btn.disabled=true;btn.textContent='Schreibe …';out.innerHTML='';
+const btn=$('#go'),out=$('#pages');$('#missingpanel').classList.add('hide');btn.disabled=true;btn.textContent='Schreibe …';out.innerHTML='';
 try{
 await ready;const f=[...BI,...S.fonts].find(x=>x.id==$('#fsel').value);
 if(!f){out.textContent='Bitte zuerst unter „Handschriften“ eine Handschrift anlegen.';return}
-const V=await variants(f);if(!Object.keys(V).length){out.textContent='Diese Handschrift enthält noch keine Zeichen.';return}
+const V=await variants(f);if(!Object.keys(V).length){out.textContent='Diese Handschrift enthält noch keine Zeichen.';if(!f.builtin)showMissing(f,missingForText(f,$('#txt').value));return}
 const bsel=$('#bsel').value,bgd=S.bgs.find(b=>b.id==bsel),bgImg=bgd?await loadImg(bgd.d):null;
 const PH=bgImg?Math.round(PW*bgImg.height/bgImg.width):1754;
 const s=+$('#size').value/100,lh=CH*s*$('#lh').value/100,R=+$('#rnd').value/100,wsb=+$('#ws').value/100;
@@ -241,7 +258,7 @@ const ig=ic.getContext('2d');ig.globalCompositeOperation='source-in';ig.fillStyl
 const pc=document.createElement('canvas');pc.width=PW*Q;pc.height=PH*Q;paper(pc,bsel,PH,lh,m,bgImg);
 const g=pc.getContext('2d');g.setTransform(1,0,0,1,0,0);g.globalCompositeOperation='multiply';g.globalAlpha=.94;g.drawImage(ic,0,0);ic.width=ic.height=1;
 const im=new Image();im.className='pg';im.src=pc.toDataURL('image/jpeg',.93);out.append(im)}
-if(miss.size){const p=document.createElement('p');p.innerHTML='<small>Nicht in dieser Handschrift enthalten und übersprungen: '+esc([...miss].join(' '))+'</small>';out.prepend(p)}
+showMissing(f,[...miss]);
 }finally{btn.disabled=false;btn.textContent='In Handschrift umwandeln'}}
 $('#go').onclick=render;
 $('#ex').onclick=()=>{const j=JSON.stringify({fonts:S.fonts,bgs:S.bgs});$('#bk').value=j;try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([j],{type:'application/json'}));a.download='handschriften.json';a.click()}catch(e){}$('#bm').textContent='Sicherung erstellt ('+Math.round(j.length/1024)+' KB). Kopiere den Text und bewahre ihn in einer Datei auf, oder nutze die heruntergeladene Datei.'};

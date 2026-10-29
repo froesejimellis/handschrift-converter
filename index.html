@@ -42,6 +42,7 @@ Deine Anna</textarea>
 <button id="go" class="pri">In Handschrift umwandeln</button>
 <p><small>Zum Speichern: Bild gedrückt halten (Handy) oder Rechtsklick → „Bild speichern unter“.</small></p>
 </div>
+<div id="missingpanel" class="card hide" role="status"><b>Fehlende Zeichen gefunden</b><p id="missingchars" class="missingchars"></p><p><small id="missinghint"></small></p><button id="addmissing" class="pri">Fehlende Zeichen jetzt schreiben</button></div>
 <div id="pages"></div>
 </section>
 
@@ -64,11 +65,10 @@ Deine Anna</textarea>
 <small>Glatte Striche beim Schreiben: 0 = direkt, 100 = stark geglättet. Die Einstellung gilt für neue Striche.</small>
 <div class="row"><label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="rm" checked> Fremde Punkte automatisch entfernen</label><label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="nm" checked> Größe &amp; Höhe angleichen</label></div>
 <div class="cv" id="cv"><canvas id="gd"></canvas><canvas id="ink"></canvas></div>
-<div class="row"><button id="un">Rückgängig</button><button id="cl">Leeren</button><button id="pv">← Zurück</button><button id="nx" class="pri">Speichern &amp; weiter →</button><button id="dn">Fertig</button></div>
+<div class="row"><button id="un">Rückgängig</button><button id="cl">Leeren</button><button id="pv">← Zurück</button><button id="nx" class="pri">Speichern &amp; weiter →</button><button id="dn">Fertig</button><button id="backtowrite">Zurück zum Text &amp; neu umwandeln</button></div>
 <div class="row"><button id="ck">Auf fremde Punkte prüfen</button><button id="rn">Bestehende Zeichen angleichen</button></div>
 <div id="msg"></div>
-<small>Jeden Buchstaben in sein Kästchen schreiben, auf der Linie. Kästchen darfst du leer lassen – Lücken kannst du jederzeit nachtragen („Nächste Lücke“ oder unten aufs Zeichen tippen). Graue Schrift = schon gespeichert, bleibt erhalten, solange du nicht drüberschreibst. Grün = mindestens 3 Varianten.</small>
-<div class="row"><button id="gap">Nächste Lücke →</button><input type="text" id="xc" placeholder="Weitere Zeichen, z. B. +*=/@#%&amp;€" style="max-width:280px"><button id="xa">Zeichen hinzufügen</button></div>
+<small>Jeden Buchstaben in sein Kästchen schreiben, auf der Linie. Grün = Zeichen hat mindestens 3 Varianten.</small>
 <div id="cov"></div>
 </div>
 </section>
