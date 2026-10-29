@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Handschrift Converter</title>
+<meta name="theme-color" content="#2f4cb5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Handschrift">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&family=Indie+Flower&family=Reenie+Beanie&display=swap">
+<link rel="stylesheet" href="style.css">
+</head><body>
+<main>
+<h1>Handschrift Converter</h1>
+<nav class="tabs"><button class="on" data-t="write">Schreiben</button><button data-t="fonts">Handschriften</button><button data-t="bgs">Hintergründe</button></nav>
+<small id="sv"></small>
+
+<section id="write">
+<div class="card">
+<textarea id="txt">Liebe Oma,
+
+vielen Dank für das schöne Geschenk! Ich habe mich riesig gefreut. Bald besuche ich dich wieder, dann backen wir zusammen Kuchen.
+
+Deine Anna</textarea>
+<div class="grid">
+<label>Handschrift<select id="fsel"></select></label>
+<label>Hintergrund<select id="bsel"></select></label>
+<label>Größe<input type="range" id="size" min="25" max="90" value="50"></label>
+<label>Zeilenabstand<input type="range" id="lh" min="40" max="120" value="70"></label>
+<label>Wortabstand<input type="range" id="ws" min="30" max="160" value="70"></label>
+<label>Unregelmäßigkeit<input type="range" id="rnd" min="0" max="100" value="40"></label>
+<label>Tintenfarbe<input type="color" id="col" value="#1a2a7a"></label>
+</div>
+<div class="grid">
+<label>Rand oben (px)<input type="number" id="mt" value="120"></label>
+<label>Rand links<input type="number" id="ml" value="110"></label>
+<label>Rand rechts<input type="number" id="mr" value="100"></label>
+<label>Rand unten<input type="number" id="mb" value="120"></label>
+</div>
+<button id="go" class="pri">In Handschrift umwandeln</button>
+<p><small>Zum Speichern: Bild gedrückt halten (Handy) oder Rechtsklick → „Bild speichern unter“.</small></p>
+</div>
+<div id="missing" class="card hide" role="status" aria-live="polite"></div>
+<div id="pages"></div>
+</section>
+
+<section id="fonts" class="hide">
+<div class="card"><b>Neue Handschrift anlegen</b>
+<div class="row"><input type="text" id="fname" placeholder="Name, z. B. Schnell oder Schön"><button id="nf" class="pri">Anlegen &amp; schreiben</button></div>
+<small>Du schreibst vorgegebene Wörter Buchstabe für Buchstabe in Kästchen. Jedes deutsche Zeichen (inkl. ä, ö, ü, ß, Ziffern, Satzzeichen) wird mindestens dreimal abgefragt, damit später Varianten wechseln. Am besten mit Stift oder Finger auf dem Touchscreen.</small></div>
+<div class="card" id="flist"></div>
+<div class="card"><b>Sicherung</b>
+<p><small>Deine Daten liegen im Browser-Speicher dieses Geräts. Wenn du die Websitedaten löschst, sind sie weg. Mit einer Sicherung kannst du sie wiederherstellen oder auf ein anderes Gerät übertragen.</small></p>
+<div class="row"><button id="ex">Sicherung erstellen</button><button id="cp">Text kopieren</button><button id="im">Text einlesen</button></div>
+<div class="row"><label>Sicherungsdatei einlesen<input type="file" id="imf" accept=".json,application/json"></label></div>
+<textarea id="bk" style="min-height:70px" placeholder="Hier erscheint die Sicherung zum Kopieren. Oder eine kopierte Sicherung hier einfügen und „Text einlesen“ drücken."></textarea>
+<small id="bm"></small></div>
+<div class="card"><b>Ordner auf dem PC (Chrome/Edge)</b><p><small>Optional: Die App legt Handschriften und Hintergründe zusätzlich als Dateien in einem Ordner deiner Wahl ab. Nach einem Neustart des Browsers muss der Zugriff evtl. erneut erlaubt werden.</small></p><div class="row"><button id="dp">Ordner verbinden / erlauben</button><button id="dl">Aus Ordner laden</button></div><small id="dm"></small></div>
+<div class="card hide" id="ed">
+<b id="wt"></b>
+<div class="row"><select id="wj" style="max-width:260px"></select><label style="flex-direction:row;align-items:center">Stiftdicke <input type="range" id="pen" min="3" max="9" value="5"></label></div>
+<div class="cv" id="cv"><canvas id="gd"></canvas><canvas id="ink"></canvas></div>
+<div class="row"><button id="un">Rückgängig</button><button id="cl">Leeren</button><button id="pv">← Zurück</button><button id="nx" class="pri">Speichern &amp; weiter →</button><button id="dn">Fertig</button></div>
+<small>Jeden Buchstaben in sein Kästchen schreiben, auf der Linie. Grün = Zeichen hat mindestens 3 Varianten.</small>
+<div id="cov"></div>
+</div>
+</section>
+
+<section id="bgs" class="hide">
+<div class="card"><label>Papier hochladen (Foto oder Scan, mehrere möglich)<input type="file" id="bf" accept="image/*" multiple></label>
+<small>Das Bild wird auf Seitenbreite skaliert; Ränder und Zeilenabstand stellst du im Reiter „Schreiben“ passend zum Papier ein.</small>
+<div id="blist" class="row"></div></div>
+</section>
+</main>
+<script src="app.js"></script>
+</body></html>
