@@ -176,7 +176,7 @@ while(st.length){const p=st.pop();px.push(p);const x=p%w,y=(p/w)|0;if(x<x0)x0=x;
 for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=w||ny>=h)continue;const q=ny*w+nx;if(!lab[q]&&d[q*4+3]>20){lab[q]=n;st.push(q)}}}
 out.push({px,x0,y0,x1,y1})}
 return out}
-/* Ein Zeichen verarbeiten: fremde Punkte finden/entfernen, auf einheitliche Größe bringen, auf die Grundlinie setzen.
+/* Ein Zeichen verarbeiten: fremde Punkte finden/entfernen, Originalgröße bewahren und auf die Grundlinie setzen.
    cv = Zellen-Canvas (CW*kk x CH*kk, Grundlinie bei BASE*kk) */
 function process(cv,ch,kk,rm,norm){
 const W=cv.width,H=cv.height,g=cv.getContext('2d'),im=g.getImageData(0,0,W,H),d=im.data,cs=comps(d,W,H);
@@ -188,12 +188,10 @@ if(rm&&strays.length){for(const c of strays)for(const p of c.px)d[p*4+3]=0;g.put
 const dots=DL.includes(ch)?ex.slice(0,al):[],body=keep.filter(c=>!dots.includes(c));
 const box=a=>a.reduce((r,c)=>[Math.min(r[0],c.x0),Math.min(r[1],c.y0),Math.max(r[2],c.x1),Math.max(r[3],c.y1)],[W,H,-1,-1]);
 const F=box(keep),B=box(body.length?body:keep),pad=2*kk;
-const x0=Math.max(0,F[0]-pad),y0=Math.max(0,F[1]-pad),x1=Math.min(W-1,F[2]+pad),y1=Math.min(H-1,F[3]+pad),w=x1-x0+1,h=y1-y0+1,bh=(B[3]-B[1]+1)/kk;
-let s=1,dy=(y1+1)/kk-BASE;
-if(norm){const t=XS.includes(ch)?TX:ch=='t'?TA*.8:TS.includes(ch)?TA:0;
-if(t){s=Math.min(2,Math.max(.5,t/bh));dy=s*(y1-B[3])/kk}
-else if(DS.includes(ch)){s=Math.min(2,Math.max(.5,TX*1.45/bh));dy=-TX+s*(y1+1-B[1])/kk}
-else if(ch=='.')dy=0}
+const x0=Math.max(0,F[0]-pad),y0=Math.max(0,F[1]-pad),x1=Math.min(W-1,F[2]+pad),y1=Math.min(H-1,F[3]+pad),w=x1-x0+1,h=y1-y0+1;
+// Keine Normierung: Pixelbreite und -höhe des handgeschriebenen Zeichens
+// bleiben erhalten. Nur sein Abstand zur gemeinsamen Grundlinie wird gespeichert.
+const s=1,dy=(y1+1)/kk-BASE;
 const o=document.createElement('canvas');o.width=Math.max(1,Math.round(w*s));o.height=Math.max(1,Math.round(h*s));
 const og=o.getContext('2d');og.imageSmoothingQuality='high';og.drawImage(cv,x0,y0,w,h,0,0,o.width,o.height);
 return{g:{d:o.toDataURL(),w:o.width/kk,h:o.height/kk,dy},strays}}
