@@ -29,3 +29,6 @@ small{color:var(--mut)}
 .range-pair input[type=range]{min-width:70px;flex:1;width:100%}
 .range-pair input[type=number]{width:75px;min-width:67px;flex:none;text-align:right}
 .checkline{flex-direction:row;align-items:center;gap:7px}
+
+.missingchars{font-weight:700;font-size:1.3rem;overflow-wrap:anywhere;letter-spacing:.12em}
+#missingpanel{border:2px solid #d6a04b}
