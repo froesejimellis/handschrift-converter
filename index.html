@@ -39,6 +39,7 @@
 
 </div>
 <div id="missingpanel" class="card hide" role="status"><b>Fehlende Zeichen gefunden</b><p id="missingchars" class="missingchars"></p><p><small id="missinghint"></small></p><button id="addmissing" class="pri">Fehlende Zeichen jetzt schreiben</button></div>
+<div class="card hide" id="exportbar"><div class="row"><label>Exportformat<select id="exportformat"><option value="pdf">PDF</option><option value="png">Bild (PNG)</option><option value="goodnotes">Goodnotes (.goodnotes, radierbare Striche)</option></select></label><button class="pri" id="exportbutton">Exportieren</button></div><small id="exportmessage" role="status"></small></div>
 <div id="pages"></div>
 </section>
 
@@ -72,5 +73,7 @@
 <div id="blist" class="row"></div></div>
 </section>
 </main>
+<script src="goodnotes-data.js"></script>
+<script src="goodnotes-export.js"></script>
 <script src="app.js"></script>
 </body></html>

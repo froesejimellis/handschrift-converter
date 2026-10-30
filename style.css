@@ -40,3 +40,5 @@ small{color:var(--mut)}
 #cov{max-height:140px;overflow:auto;margin-bottom:10px}
 .editor-actions{margin:10px 0}
 #msg:empty{display:none}
+
+#exportbar label{min-width:210px}

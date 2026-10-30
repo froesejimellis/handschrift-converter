@@ -242,6 +242,27 @@ ed.i=Math.max(0,Math.min(ed.f.words.length-1,k));show();$('#msg').textContent=n?
 $('#nx').onclick=()=>go(ed.i+1);$('#pv').onclick=()=>go(ed.i-1);$('#wj').onchange=e=>go(+e.target.value);
 $('#dn').onclick=()=>{if(!ed)return;if(ed.st.length){const r=grab();ed.f.slots[ed.i]=r.arr;save()}ed=null;$('#ed').classList.add('hide');lists();if(missingSession){missingSession=null;switchTab('write');render()}};
 
+/* Erfasste Tintenpixel pro Ausgabeseite, getrennt vom Papier.
+   Die Bildabtastung erzeugt radierbare kurze Stiftobjekte statt einer Textur. */
+let GN_PAGES=[];
+function gnVectorize(canvas,H){
+ const c=document.createElement('canvas');c.width=PW;c.height=H;
+ const g=c.getContext('2d',{willReadFrequently:true});g.clearRect(0,0,PW,H);g.drawImage(canvas,0,0,PW,H);
+ const d=g.getImageData(0,0,PW,H).data,lines=[];
+ for(let y=0;y<H;y++){let run=-1;for(let x=0;x<=PW;x++){
+  const visible=x<PW&&d[(y*PW+x)*4+3]>56;
+  if(visible&&run<0)run=x;
+  if(!visible&&run>=0){lines.push([Math.max(.4,run-.1),y+.5,Math.min(PW-.4,Math.max(run+.7,x-.1))]);run=-1}
+ }}return lines;
+}
+function gnLetterPage(bg,H){const c=document.createElement('canvas');c.width=1224;c.height=1584;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);
+ const s=Math.min(c.width/bg.width,c.height/bg.height);g.drawImage(bg,(c.width-bg.width*s)/2,(c.height-bg.height*s)/2,bg.width*s,bg.height*s);
+ return c.toDataURL('image/jpeg',.87);
+}
+function gnThumbnail(page){const c=document.createElement('canvas');c.width=320;c.height=450;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);
+ const s=Math.min(c.width/page.width,c.height/page.height);g.drawImage(page,(c.width-page.width*s)/2,(c.height-page.height*s)/2,page.width*s,page.height*s);
+ return c.toDataURL('image/jpeg',.82);
+}
 /* Rendern */
 const IC={};
 async function variants(f){const V={};for(const[k,w]of f.words.entries()){const s=f.slots[k];if(!s)continue;for(const[j,ch]of[...w].entries()){const g=s[j];if(!g)continue;IC[g.d]=IC[g.d]||await loadImg(g.d);if(IC[g.d])(V[ch]=V[ch]||[]).push({...g,img:IC[g.d]})}}return V}
@@ -260,7 +281,7 @@ function showMissing(f,chars){
  panel.classList.remove('hide');
 }
 async function render(){
-const btn=$('#go'),out=$('#pages');$('#missingpanel').classList.add('hide');btn.disabled=true;btn.textContent='Schreibe …';out.innerHTML='';
+GN_PAGES=[];const btn=$('#go'),out=$('#pages');$('#exportbar').classList.add('hide');$('#missingpanel').classList.add('hide');btn.disabled=true;btn.textContent='Schreibe …';out.innerHTML='';
 try{
 await ready;const f=[...BI,...S.fonts].find(x=>x.id==$('#fsel').value);
 if(!f){out.textContent='Bitte zuerst unter „Handschriften“ eine Handschrift anlegen.';return}
@@ -290,9 +311,11 @@ const col=$('#col').value;
 for(const ic of pages.filter(p=>p.dirty)){
 const ig=ic.getContext('2d');ig.globalCompositeOperation='source-in';ig.fillStyle=col;ig.fillRect(0,0,PW,PH);
 const pc=document.createElement('canvas');pc.width=PW*Q;pc.height=PH*Q;paper(pc,bsel,PH,lh,m,bgImg);
+const gnPaper=gnLetterPage(pc,PH),gnLines=gnVectorize(ic,PH);
 const g=pc.getContext('2d');g.setTransform(1,0,0,1,0,0);g.globalCompositeOperation='multiply';g.globalAlpha=.94;g.drawImage(ic,0,0);ic.width=ic.height=1;
+GN_PAGES.push({height:PH,lines:gnLines,paper:gnPaper,thumb:gnThumbnail(pc)});
 const im=new Image();im.className='pg';im.src=pc.toDataURL('image/jpeg',.93);out.append(im)}
-showMissing(f,[...miss]);
+showMissing(f,[...miss]);$('#exportbar').classList.remove('hide');$('#exportmessage').textContent='';
 }finally{btn.disabled=false;btn.textContent='In Handschrift umwandeln'}}
 $('#go').onclick=render;
 $('#ex').onclick=()=>{const j=JSON.stringify({fonts:S.fonts,bgs:S.bgs});$('#bk').value=j;try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([j],{type:'application/json'}));a.download='handschriften.json';a.click()}catch(e){}$('#bm').textContent='Sicherung erstellt ('+Math.round(j.length/1024)+' KB). Kopiere den Text und bewahre ihn in einer Datei auf, oder nutze die heruntergeladene Datei.'};
@@ -317,3 +340,53 @@ for(const[id,name,fam,px,j]of FONTS){const words=[],slots={};for(let v=0;v<5;v++
 lists()})();
 loadDB().then(lists);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+/* Export: PDF aus JPEG-Seiten, verlustfreies PNG pro Seite.
+   .goodnotes ist ein proprietäres Notizformat: Ohne dokumentierte Kodierung
+   wird bewusst keine scheinbar radierbare Rasterdatei erzeugt. */
+function downloadBytes(data,name,type){const blob=data instanceof Blob?data:new Blob([data],{type});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000)}
+function pdfFromPageImages(images){
+ const enc=new TextEncoder(),parts=[],offsets=[0];let length=0;
+ const put=b=>{parts.push(b);length+=b.length};const str=t=>put(enc.encode(t));
+ str('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+ const objs=[];let k=3;
+ for(const im of images){objs.push({page:k++,content:k++,image:k++,im})}
+ const objects=new Map();objects.set(1,'<< /Type /Catalog /Pages 2 0 R >>');
+ objects.set(2,`<< /Type /Pages /Kids [${objs.map(o=>o.page+' 0 R').join(' ')}] /Count ${objs.length} >>`);
+ for(const o of objs){
+  const w=o.im.naturalWidth,h=o.im.naturalHeight;
+  objects.set(o.page,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${w/2} ${h/2}] /Resources << /XObject << /Im${o.image} ${o.image} 0 R >> >> /Contents ${o.content} 0 R >>`);
+  const stream=`q\n${w/2} 0 0 ${h/2} 0 0 cm\n/Im${o.image} Do\nQ\n`;
+  objects.set(o.content,`<< /Length ${enc.encode(stream).length} >>\nstream\n${stream}endstream`);
+  const raw=atob(o.im.src.split(',')[1]),binary=new Uint8Array(raw.length);for(let j=0;j<raw.length;j++)binary[j]=raw.charCodeAt(j);
+  objects.set(o.image,{head:`<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${binary.length} >>\nstream\n`,binary});
+ }
+ for(let i=1;i<k;i++){offsets[i]=length;str(`${i} 0 obj\n`);const o=objects.get(i);if(typeof o==='string')str(o);else{str(o.head);put(o.binary);str('\nendstream')}str('\nendobj\n')}
+ const xref=length;str(`xref\n0 ${k}\n0000000000 65535 f \n`);
+ for(let i=1;i<k;i++)str(String(offsets[i]).padStart(10,'0')+' 00000 n \n');
+ str(`trailer\n<< /Size ${k} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+ return new Blob(parts,{type:'application/pdf'});
+}
+$('#exportbutton').onclick=async()=>{
+ const kind=$('#exportformat').value,msg=$('#exportmessage'),images=[...document.querySelectorAll('#pages img.pg')];
+ if(!images.length){msg.textContent='Bitte zuerst Text umwandeln.';return}
+ try{
+  if(kind==='goodnotes'){
+   if(!GN_PAGES.length)throw Error('Keine Handschriftseiten vorhanden.');
+   msg.textContent='Native Goodnotes-Stiftobjekte werden erzeugt …';
+   for(let i=0;i<GN_PAGES.length;i++){
+    const doc=await gnCreate(GN_PAGES[i],$('#col').value);
+    downloadBytes(doc,'handschrift-seite-'+String(i+1).padStart(2,'0')+'.goodnotes','application/octet-stream');
+    msg.textContent=(i+1)+' von '+GN_PAGES.length+' Goodnotes-Seiten erstellt.';
+    await new Promise(resolve=>setTimeout(resolve,30));
+   }
+   msg.textContent+=' Die Striche sind als eigenständige Goodnotes-Stiftobjekte gespeichert. Bitte den Import und das Radieren in Goodnotes testen.';
+  }
+  else if(kind==='pdf'){downloadBytes(pdfFromPageImages(images),'handschrift.pdf','application/pdf');msg.textContent='PDF erstellt.'}
+  else{for(let i=0;i<images.length;i++){
+   const canvas=document.createElement('canvas');canvas.width=images[i].naturalWidth;canvas.height=images[i].naturalHeight;canvas.getContext('2d').drawImage(images[i],0,0);
+   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+   downloadBytes(blob,`handschrift-seite-${String(i+1).padStart(2,'0')}.png`,'image/png');
+  }msg.textContent=images.length===1?'PNG erstellt.':`${images.length} PNG-Dateien erstellt. Der Browser kann mehrere Downloads bestätigen lassen.`}
+ }catch(e){console.error(e);msg.textContent='Export fehlgeschlagen: '+e.message}
+};
