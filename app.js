@@ -119,7 +119,7 @@ function beginMissing(){const f=S.fonts.find(x=>x.id==$('#fsel').value);if(!f)re
  const missing=missingForText(f,$('#txt').value);if(!missing.length){render();return}
  const entries=addMissingToFont(f,missing);if(!entries.length)return;
  missingSession={id:f.id,chars:missing};save();lists();switchTab('fonts');edit(f.id,entries[0].idx);
- $('#msg').textContent='Schreibe jedes fehlende Sonderzeichen dreimal (Variante 1, 2 und 3). Mit „Speichern & weiter“ gehst du zur nächsten Schreibprobe.';
+ $('#msg').textContent='';
 }
 $('#addmissing').onclick=beginMissing;
 $('#backtowrite').onclick=()=>{if(ed){const r=grab();if(ed.st.length){ed.f.slots[ed.i]=r.arr;save();}}ed=null;$('#ed').classList.add('hide');missingSession=null;lists();switchTab('write');render()};
