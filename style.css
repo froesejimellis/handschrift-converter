@@ -32,3 +32,7 @@ small{color:var(--mut)}
 
 .missingchars{font-weight:700;font-size:1.3rem;overflow-wrap:anywhere;letter-spacing:.12em}
 #missingpanel{border:2px solid #d6a04b}
+
+/* Berührungsfreie Ablage zwischen Schreibfläche und allen Schaltflächen. */
+.palm-rest{min-height:190px;display:flex;align-items:flex-start;justify-content:center;padding:14px 8px;background:var(--bg);border:1px dashed var(--bd);border-radius:10px;color:var(--mut);font-size:12px;text-align:center;user-select:none;-webkit-user-select:none;touch-action:none;overscroll-behavior:contain;-webkit-tap-highlight-color:transparent}
+@media(pointer:coarse){.palm-rest{min-height:245px}}

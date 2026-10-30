@@ -1,4 +1,4 @@
-const V='hc-v6-originalgroesse',FILES=['./','index.html','style.css','app.js','manifest.webmanifest','icon-192.png','icon-512.png'];
+const V='hc-v7-auto-grundlinie-handballen',FILES=['./','index.html','style.css','app.js','manifest.webmanifest','icon-192.png','icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(FILES)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!=V&&x!='hc-fonts').map(x=>caches.delete(x)))));self.clients.claim()});
 self.addEventListener('fetch',e=>{const r=e.request;if(r.method!='GET')return;const u=new URL(r.url);

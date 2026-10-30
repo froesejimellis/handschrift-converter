@@ -93,7 +93,7 @@ $('#nf').onclick=()=>{const f={id:'f'+Date.now(),name:$('#fname').value.trim()||
 /* Editor */
 let ed=null,cur=null,missingSession=null;const ink=$('#ink'),gd=$('#gd');
 const XS='aceimnorsuvwxzäöü',DS='gjpqy',TS='bdfhklABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜß0123456789!?',DL='ijäöüÄÖÜ',DOT={i:1,j:1,ä:2,ö:2,ü:2,Ä:2,Ö:2,Ü:2,':':1,';':1,'!':1,'?':1,'"':1},TX=48,TA=84;
-const MSGDOT='Fremde Punkte gefunden (rot markiert). Bitte wegradieren („Rückgängig“) oder „Fremde Punkte automatisch entfernen“ einschalten.';
+
 function edit(id,startingIndex=null){const f=S.fonts.find(x=>x.id==id);if(!f)return;const i=f.words.findIndex((w,k)=>!f.slots[k]);ed={f,i:startingIndex===null?(i<0?0:i):startingIndex,st:[]};$('#ed').classList.remove('hide');show();$('#ed').scrollIntoView()}
 // Sonderzeichen erhalten genauso wie Buchstaben drei unabhängig gespeicherte Schreibproben.
 const isSpecial=ch=>/[\p{P}\p{S}]/u.test(ch);
@@ -122,7 +122,7 @@ function beginMissing(){const f=S.fonts.find(x=>x.id==$('#fsel').value);if(!f)re
  $('#msg').textContent='Schreibe jedes fehlende Sonderzeichen dreimal (Variante 1, 2 und 3). Mit „Speichern & weiter“ gehst du zur nächsten Schreibprobe.';
 }
 $('#addmissing').onclick=beginMissing;
-$('#backtowrite').onclick=()=>{if(ed){const r=grab();if(ed.st.length){if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return}ed.f.slots[ed.i]=r.arr;save();}}ed=null;$('#ed').classList.add('hide');missingSession=null;lists();switchTab('write');render()};
+$('#backtowrite').onclick=()=>{if(ed){const r=grab();if(ed.st.length){ed.f.slots[ed.i]=r.arr;save();}}ed=null;$('#ed').classList.add('hide');missingSession=null;lists();switchTab('write');render()};
 function guides(){const{f,i}=ed,w=[...f.words[i]],g=gd.getContext('2d');g.setTransform(K,0,0,K,0,0);g.clearRect(0,0,gd.width,gd.height);g.strokeStyle='#8886';g.fillStyle='#888';g.font='14px sans-serif';g.setLineDash([]);
 w.forEach((c,k)=>{g.strokeRect(k*CW+.5,.5,CW-1,CH-1);g.beginPath();g.moveTo(k*CW,BASE);g.lineTo(k*CW+CW,BASE);g.stroke();g.fillText(c,k*CW+6,18)});
 g.setLineDash([3,4]);g.beginPath();for(let k=0;k<w.length;k++){g.moveTo(k*CW,BASE-TX);g.lineTo(k*CW+CW,BASE-TX)}g.stroke();g.setLineDash([])}
@@ -178,6 +178,41 @@ out.push({px,x0,y0,x1,y1})}
 return out}
 /* Ein Zeichen verarbeiten: fremde Punkte finden/entfernen, Originalgröße bewahren und auf die Grundlinie setzen.
    cv = Zellen-Canvas (CW*kk x CH*kk, Grundlinie bei BASE*kk) */
+// Aus der Buchstabenform und den Hilfslinien die passende Grundlinie erkennen.
+// Die Ausrichtung nutzt die Form statt die absolute Lage des gezeichneten Buchstabens:
+// so werden versehentlich höher/tiefer geschriebene Zeichen korrigiert.
+function detectBaselineOffset(data,W,H,components,ch,kk){
+ const bottom=Math.max(...components.map(c=>c.y1))/kk;
+ const height=(Math.max(...components.map(c=>c.y1))-Math.min(...components.map(c=>c.y0))+1)/kk;
+ // Satzzeichen haben ihre eigene vertikale Lage relativ zur Grundlinie.
+ if('.,'.includes(ch))return ch===','?Math.min(11,height*.55):0;
+ if(ch===';'||ch===':')return ch===';'?Math.min(10,height*.3):0;
+ if(ch==='_' )return Math.min(10,height*.4);
+ if(ch==='-'||ch==='–'||ch==='—'||ch==='=')return -Math.max(10,Math.min(24,height));
+ if(ch==="'"||ch==='’'||ch==='`'||ch==='"'||ch==='“'||ch==='”'||ch==='^'||ch==='°')return -Math.max(30,Math.min(55,BASE*.35));
+ // Unterlängen: Erkenne den Übergang vom Buchstabenkörper zum Abstrich anhand
+ // der Breite der Tinte je Zeile. Bei schmalen Abstrichen ist die Grundlinie
+ // dort, wo der breite Körper endet, und nicht am untersten Tintenpixel.
+ if('gjpqy'.includes(ch)){
+  const rows=new Int32Array(H);
+  let minY=H,maxY=0;
+  for(const c of components){minY=Math.min(minY,c.y0);maxY=Math.max(maxY,c.y1);for(const pix of c.px)rows[(pix/W)|0]++}
+  const total=maxY-minY+1;
+  const from=Math.round(minY+total*.42),to=Math.round(minY+total*.86);
+  let best=-1,score=-Infinity;
+  for(let y=from;y<=to;y++){
+   const upper=rows[Math.max(0,y-Math.round(5*kk))],lower=rows[Math.min(H-1,y+Math.round(5*kk))];
+   const scoreNow=(upper-lower)*1.5 + rows[y]*.3 - Math.abs(y-(minY+total*.67))*.1;
+   if(scoreNow>score){score=scoreNow;best=y}
+  }
+  // Fehlt ein erkennbarer Übergang, wird eine typische Unterlänge verwendet.
+  const candidate=best>=0?best/kk:bottom-height*.23;
+  const extension=bottom-candidate;
+  return extension>3&&extension<height*.65?extension:Math.min(height*.28,28);
+ }
+ // Bei allen normalen Zeichen ruht die Unterkante auf derselben Grundlinie.
+ return 0;
+}
 function process(cv,ch,kk,rm,norm){
 const W=cv.width,H=cv.height,g=cv.getContext('2d'),im=g.getImageData(0,0,W,H),d=im.data,cs=comps(d,W,H);
 if(!cs.length)return{g:null,strays:[]};
@@ -191,29 +226,21 @@ const F=box(keep),B=box(body.length?body:keep),pad=2*kk;
 const x0=Math.max(0,F[0]-pad),y0=Math.max(0,F[1]-pad),x1=Math.min(W-1,F[2]+pad),y1=Math.min(H-1,F[3]+pad),w=x1-x0+1,h=y1-y0+1;
 // Keine Normierung: Pixelbreite und -höhe des handgeschriebenen Zeichens
 // bleiben erhalten. Nur sein Abstand zur gemeinsamen Grundlinie wird gespeichert.
-const s=1,dy=(y1+1)/kk-BASE;
+const s=1,dy=detectBaselineOffset(d,W,H,keep,ch,kk);
 const o=document.createElement('canvas');o.width=Math.max(1,Math.round(w*s));o.height=Math.max(1,Math.round(h*s));
 const og=o.getContext('2d');og.imageSmoothingQuality='high';og.drawImage(cv,x0,y0,w,h,0,0,o.width,o.height);
 return{g:{d:o.toDataURL(),w:o.width/kk,h:o.height/kk,dy},strays}}
-function grab(){const rm=$('#rm').checked,nm=$('#nm').checked,arr=[],st=[];
+function grab(){const rm=true,nm=true,arr=[],st=[];
 [...ed.f.words[ed.i]].forEach((ch,i)=>{const t=document.createElement('canvas');t.width=CW*K;t.height=CH*K;t.getContext('2d').drawImage(ink,i*CW*K,0,CW*K,CH*K,0,0,CW*K,CH*K);
 const r=process(t,ch,K,rm,nm);arr.push(r.g);if(r.strays.length)st.push({i,ch,n:r.strays.length,b:r.strays.map(c=>[c.x0,c.y0,c.x1,c.y1])})});
 return{arr,st}}
 function go(k){if(!ed)return;let n=0;
-if(ed.st.length){const r=grab();if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return}
+if(ed.st.length){const r=grab();
 ed.f.slots[ed.i]=r.arr;n=r.st.reduce((a,s)=>a+s.n,0);save();lists()}
 if(missingSession?.id===ed.f.id&&k>ed.i){const idx=nextMissingTask(ed.f,missingSession.chars);if(idx>=0)k=idx}
 ed.i=Math.max(0,Math.min(ed.f.words.length-1,k));show();$('#msg').textContent=n?n+' fremde(r) Punkt(e) automatisch entfernt.':''}
 $('#nx').onclick=()=>go(ed.i+1);$('#pv').onclick=()=>go(ed.i-1);$('#wj').onchange=e=>go(+e.target.value);
-$('#ck').onclick=()=>{if(!ed)return;const r=grab();if(r.st.length){mark(r.st);$('#msg').textContent=r.st.reduce((a,s)=>a+s.n,0)+' fremde(r) Punkt(e) gefunden und rot markiert.'}else{guides();$('#msg').textContent='Keine fremden Punkte gefunden.'}};
-$('#dn').onclick=()=>{if(!ed)return;if(ed.st.length){const r=grab();if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return}ed.f.slots[ed.i]=r.arr;save()}ed=null;$('#ed').classList.add('hide');lists();if(missingSession){missingSession=null;switchTab('write');render()}};
-$('#rn').onclick=async()=>{if(!ed)return;$('#msg').textContent='Gleiche an …';let n=0;const f=ed.f;
-for(const[k,w]of f.words.entries()){const s=f.slots[k];if(!s)continue;
-for(const[j,ch]of[...w].entries()){const gl=s[j];if(!gl)continue;const im=await loadImg(gl.d);if(!im)continue;
-const kk=im.width/gl.w,t=document.createElement('canvas');t.width=Math.round((CW+20)*kk);t.height=Math.round(CH*kk);
-t.getContext('2d').drawImage(im,Math.round(10*kk),Math.max(0,Math.round((BASE+gl.dy-gl.h)*kk)));
-const r=process(t,ch,kk,true,true);if(r.g){s[j]=r.g;n++}}}
-save();show();$('#msg').textContent=n+' Zeichen angeglichen.'};
+$('#dn').onclick=()=>{if(!ed)return;if(ed.st.length){const r=grab();ed.f.slots[ed.i]=r.arr;save()}ed=null;$('#ed').classList.add('hide');lists();if(missingSession){missingSession=null;switchTab('write');render()}};
 
 /* Rendern */
 const IC={};
