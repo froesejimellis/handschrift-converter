@@ -224,12 +224,12 @@ const dots=DL.includes(ch)?ex.slice(0,al):[],body=keep.filter(c=>!dots.includes(
 const box=a=>a.reduce((r,c)=>[Math.min(r[0],c.x0),Math.min(r[1],c.y0),Math.max(r[2],c.x1),Math.max(r[3],c.y1)],[W,H,-1,-1]);
 const F=box(keep),B=box(body.length?body:keep),pad=2*kk;
 const x0=Math.max(0,F[0]-pad),y0=Math.max(0,F[1]-pad),x1=Math.min(W-1,F[2]+pad),y1=Math.min(H-1,F[3]+pad),w=x1-x0+1,h=y1-y0+1;
-// Keine Normierung: Pixelbreite und -höhe des handgeschriebenen Zeichens
-// bleiben erhalten. Nur sein Abstand zur gemeinsamen Grundlinie wird gespeichert.
-const s=1,dy=detectBaselineOffset(d,W,H,keep,ch,kk);
-const o=document.createElement('canvas');o.width=Math.max(1,Math.round(w*s));o.height=Math.max(1,Math.round(h*s));
-const og=o.getContext('2d');og.imageSmoothingQuality='high';og.drawImage(cv,x0,y0,w,h,0,0,o.width,o.height);
-return{g:{d:o.toDataURL(),w:o.width/kk,h:o.height/kk,dy},strays}}
+// Originale Zeichenabmessungen pixelgenau erhalten. Beim Speichern wird
+// ausschließlich die Grundlinienlage (dy) berechnet, niemals die Form skaliert.
+const dy=detectBaselineOffset(d,W,H,keep,ch,kk);
+const o=document.createElement('canvas');o.width=w;o.height=h;
+o.getContext('2d').drawImage(cv,x0,y0,w,h,0,0,w,h);
+return{g:{d:o.toDataURL(),w:w/kk,h:h/kk,dy},strays}}
 function grab(){const rm=true,nm=true,arr=[],st=[];
 [...ed.f.words[ed.i]].forEach((ch,i)=>{const t=document.createElement('canvas');t.width=CW*K;t.height=CH*K;t.getContext('2d').drawImage(ink,i*CW*K,0,CW*K,CH*K,0,0,CW*K,CH*K);
 const r=process(t,ch,K,rm,nm);arr.push(r.g);if(r.strays.length)st.push({i,ch,n:r.strays.length,b:r.strays.map(c=>[c.x0,c.y0,c.x1,c.y1])})});
@@ -359,9 +359,17 @@ for(const word of para.split(/\s+/).filter(Boolean)){
 const items=[...word].map(c=>({g:pick(c),gp:(3+rnd(-1.5,2.5)*R)*s}));
 const adv=o=>(o.g?o.g.w*s:20*s)+o.gp,wd=items.reduce((a,o)=>a+adv(o),0);
 if(x+wd>RM&&x>x0+1)nl();
-for(const o of items){if(o.g){const w=o.g.w*s,h=o.g.h*s,sv=1+rnd(-.05,.05)*R,a=rnd(-3,3)*R*Math.PI/180;
+for(const o of items){if(o.g){
+// Alle Zeichen erhalten ausschließlich denselben vom Größenregler bestimmten Faktor.
+// Weder Kleinbuchstaben noch Großbuchstaben oder Varianten werden einzeln normiert.
+const w=o.g.w*s,h=o.g.h*s,a=rnd(-3,3)*R*Math.PI/180;
+// Vertikale Verschiebung legt die erkannte Grundlinie bei Unregelmäßigkeit 0
+// exakt auf y. dy korrigiert Unterlängen, ohne die Zeichenhöhe zu verändern.
 const gy=y+by+sl*(x-m.l)+o.g.dy*s-h+rnd(-3,3)*R*s;
-ctx.save();ctx.translate(x+w/2,gy+h/2);ctx.rotate(a);ctx.scale(sv,sv);ctx.drawImage(o.g.img,-w/2,-h/2,w,h);ctx.restore();ctx.canvas.dirty=1}
+ctx.save();
+if(R){ctx.translate(x+w/2,gy+h/2);ctx.rotate(a);ctx.drawImage(o.g.img,-w/2,-h/2,w,h)}
+else ctx.drawImage(o.g.img,x,gy,w,h);
+ctx.restore();ctx.canvas.dirty=1}
 x+=adv(o)}
 x+=60*s*wsb*(1+rnd(-.45,.8)*R*1.3)}
 nl()}
