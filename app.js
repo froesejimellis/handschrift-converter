@@ -332,9 +332,12 @@ if(type=='lined')for(let y=m.t+lh+6;y<H-m.b+10;y+=lh){g.moveTo(m.l-20,y);g.lineT
 if(type=='grid'){const st=lh/2;for(let y=m.t;y<H;y+=st){g.moveTo(0,y);g.lineTo(PW,y)}for(let x=0;x<PW;x+=st){g.moveTo(x,0);g.lineTo(x,H)}}
 g.stroke();
 if(type=='dotted'){
- const st=Math.max(18,lh/2),r=Math.max(1.1,Math.min(1.8,st/26));
- for(let y=m.t;y<=H-m.b;y+=st){
-  for(let x=m.l;x<=PW-m.r;x+=st){
+ // Jede Schreibgrundlinie liegt exakt zwischen zwei Punktreihen.
+ // Vertikale Punktreihen folgen dem wirklichen Zeilenabstand (lh),
+ // nicht einem unabhängig gerundeten Raster.
+ const stX=Math.max(18,lh/2),stY=lh,r=Math.max(1.1,Math.min(1.8,stX/26));
+ for(let row=0, y=m.t+stY/2;y<=H-m.b;row++,y=m.t+stY/2+row*stY){
+  for(let x=m.l;x<=PW-m.r;x+=stX){
    g.beginPath();
    g.arc(x,y,r,0,Math.PI*2);
    g.fill();
@@ -363,7 +366,7 @@ const m={t:+$('#mt').value,l:+$('#ml').value,r:+$('#mr').value,b:+$('#mb').value
 const pages=[],last={},miss=new Set();let ctx,y,x,x0,sl,by;
 const line=()=>{sl=rnd(-1,1)*.006*R;x0=m.l+rnd(0,12)*R;x=x0;by=rnd(-2,2)*R};
 const newPage=()=>{const c=document.createElement('canvas');c.width=PW*Q;c.height=PH*Q;pages.push(c);ctx=c.getContext('2d');ctx.scale(Q,Q);ctx.imageSmoothingQuality='high';y=m.t+lh;line()};
-const nl=()=>{y+=lh*(1+rnd(-.04,.04)*R);if(y>PH-m.b)newPage();else line()};
+const nl=()=>{y+=lh*(bsel==='dotted'?1:1+rnd(-.04,.04)*R);if(y>PH-m.b)newPage();else line()};
 const pick=ch=>{const a=V[ch]||V[ch.toLowerCase()]||V[ch.toUpperCase()];if(!a){miss.add(ch);return null}let i=0;if(a.length>1){do i=Math.random()*a.length|0;while(i===last[ch])}last[ch]=i;return a[i]};
 newPage();
 for(const para of $('#txt').value.split('\n')){
