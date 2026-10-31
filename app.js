@@ -63,8 +63,10 @@ const done=f=>Object.values(f.slots).reduce((a,s)=>a+s.filter(Boolean).length,0)
 function lists(){
 const fs=$('#fsel'),bs=$('#bsel'),pf=fs.value,pb=bs.value;
 fs.innerHTML=[...BI,...S.fonts].map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('')||'<option value="">– keine –</option>';
-bs.innerHTML=[['plain','Weiß'],['lined','Liniert'],['grid','Kariert'],...S.bgs.map(b=>[b.id,b.name])].map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('');
-if(pf)fs.value=pf;if(pb)bs.value=pb;
+bs.innerHTML=[['dotted','Gepunktet'],['plain','Weiß'],['lined','Liniert'],['grid','Kariert'],...S.bgs.map(b=>[b.id,b.name])].map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('');
+if(pf)fs.value=pf;
+if(pb && [...bs.options].some(o=>o.value===pb))bs.value=pb;
+else bs.value='dotted';
 $('#flist').innerHTML=S.fonts.map(f=>`<div class="row"><b>${esc(f.name)}</b><small>${done(f)} von ${total(f)} Zeichen geschrieben</small><button data-a="edit" data-id="${f.id}">Weiterschreiben</button><button data-a="rename" data-id="${f.id}">Umbenennen</button><button data-a="del" data-id="${f.id}">Löschen</button></div>`).join('')||'<small>Noch keine Handschrift angelegt.</small>';
 $('#blist').innerHTML=S.bgs.map(b=>`<div><img class="th" src="${b.d}"><br><small>${esc(b.name)}</small><br><button data-ba="rename" data-bid="${b.id}">Umbenennen</button><button data-ba="del" data-bid="${b.id}">Löschen</button></div>`).join('')}
 $('#flist').onclick=e=>{const b=e.target.closest('button');if(!b)return;
@@ -325,10 +327,20 @@ function gnThumbnail(page){const c=document.createElement('canvas');c.width=320;
 const IC={};
 async function variants(f){const V={};for(const[k,w]of f.words.entries()){const s=f.slots[k];if(!s)continue;for(const[j,ch]of[...w].entries()){const g=s[j];if(!g)continue;IC[g.d]=IC[g.d]||await loadImg(g.d);if(IC[g.d])(V[ch]=V[ch]||[]).push({...g,img:IC[g.d]})}}return V}
 function paper(c,type,H,lh,m,bg){const g=c.getContext('2d');g.scale(Q,Q);g.fillStyle='#fdfcf8';g.fillRect(0,0,PW,H);if(bg){g.drawImage(bg,0,0,PW,H);return}
-g.strokeStyle='#a9c1da';g.lineWidth=1.5;g.beginPath();
+g.strokeStyle='#a9c1da';g.fillStyle='#c3c8d2';g.lineWidth=1.5;g.beginPath();
 if(type=='lined')for(let y=m.t+lh+6;y<H-m.b+10;y+=lh){g.moveTo(m.l-20,y);g.lineTo(PW-m.r+20,y)}
 if(type=='grid'){const st=lh/2;for(let y=m.t;y<H;y+=st){g.moveTo(0,y);g.lineTo(PW,y)}for(let x=0;x<PW;x+=st){g.moveTo(x,0);g.lineTo(x,H)}}
-g.stroke()}
+g.stroke();
+if(type=='dotted'){
+ const st=Math.max(18,lh/2),r=Math.max(1.1,Math.min(1.8,st/26));
+ for(let y=m.t;y<=H-m.b;y+=st){
+  for(let x=m.l;x<=PW-m.r;x+=st){
+   g.beginPath();
+   g.arc(x,y,r,0,Math.PI*2);
+   g.fill();
+  }
+ }
+}}
 function showMissing(f,chars){
  const panel=$('#missingpanel'),list=$('#missingchars');
  if(!chars.length){panel.classList.add('hide');return}
