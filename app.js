@@ -93,28 +93,36 @@ $('#nf').onclick=()=>{const f={id:'f'+Date.now(),name:$('#fname').value.trim()||
 /* Editor */
 let ed=null,cur=null,missingSession=null;const ink=$('#ink'),gd=$('#gd');
 const XS='aceimnorsuvwxzäöü',DS='gjpqy',TS='bdfhklABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜß0123456789!?',DL='ijäöüÄÖÜ',DOT={i:1,j:1,ä:2,ö:2,ü:2,Ä:2,Ö:2,Ü:2,':':1,';':1,'!':1,'?':1,'"':1},TX=48,TA=84;
-const MSGDOT='Fremde Punkte gefunden (rot markiert). Bitte wegradieren („Rückgängig“) oder „Fremde Punkte automatisch entfernen“ einschalten.';
+
 function edit(id,startingIndex=null){const f=S.fonts.find(x=>x.id==id);if(!f)return;const i=f.words.findIndex((w,k)=>!f.slots[k]);ed={f,i:startingIndex===null?(i<0?0:i):startingIndex,st:[]};$('#ed').classList.remove('hide');show();$('#ed').scrollIntoView()}
+// Sonderzeichen erhalten genauso wie Buchstaben drei unabhängig gespeicherte Schreibproben.
+const isSpecial=ch=>/[\p{P}\p{S}]/u.test(ch);
 function addMissingToFont(f,chars){
- const seen=new Set();const added=[];
- for(const ch of chars){if(/\s/u.test(ch)||seen.has(ch))continue;seen.add(ch);
-  if(counts(f)[ch])continue;
-  // Ein-Zeichen-Aufgaben erhalten die bisherigen Schriftproben unverändert.
-  let idx=f.words.findIndex((w,k)=>w===ch&&!(f.slots[k]||[])[0]);
-  if(idx<0){idx=f.words.length;f.words.push(ch)}
-  added.push({ch,idx});
+ const entries=[];
+ for(const ch of new Set(chars)){
+  if(/\s/u.test(ch))continue;
+  let have=counts(f)[ch]||0;
+  // Vorhandene unbeschriebene Ein-Zeichen-Felder zuerst verwenden.
+  for(let k=0;k<f.words.length&&have<3;k++){
+   if(f.words[k]!==ch||f.slots[k]?.[0])continue;
+   entries.push({ch,idx:k});have++;
+  }
+  while(have<3){const idx=f.words.length;f.words.push(ch);entries.push({ch,idx});have++}
  }
- return added;
+ return entries;
 }
-function missingForText(f,txt){const c=counts(f);return [...new Set([...txt].filter(ch=>!(/\s/u.test(ch))&&!c[ch]&&!c[ch.toLowerCase()]&&!c[ch.toUpperCase()]))]}
+function missingForText(f,txt){const c=counts(f);return [...new Set([...txt].filter(ch=>
+ !(/\s/u.test(ch)) && (isSpecial(ch)?(c[ch]||0)<3:!c[ch]&&!c[ch.toLowerCase()]&&!c[ch.toUpperCase()])
+))]}
+function nextMissingTask(f,chars){return f.words.findIndex((w,k)=>chars.includes(w)&&!(f.slots[k]||[])[0]);}
 function beginMissing(){const f=S.fonts.find(x=>x.id==$('#fsel').value);if(!f)return;
  const missing=missingForText(f,$('#txt').value);if(!missing.length){render();return}
  const entries=addMissingToFont(f,missing);if(!entries.length)return;
  missingSession={id:f.id,chars:missing};save();lists();switchTab('fonts');edit(f.id,entries[0].idx);
- $('#msg').textContent='Schreibe die fehlenden Zeichen. Mit „Speichern & weiter“ gehst du zum nächsten. Mit „Zurück zum Text“ kannst du anschließend neu umwandeln.';
+ $('#msg').textContent='';
 }
 $('#addmissing').onclick=beginMissing;
-$('#backtowrite').onclick=()=>{if(ed){const r=grab();if(ed.st.length){if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return}ed.f.slots[ed.i]=r.arr;save();}}ed=null;$('#ed').classList.add('hide');missingSession=null;lists();switchTab('write');render()};
+$('#backtowrite').onclick=()=>{if(ed){const r=grab();if(ed.st.length){ed.f.slots[ed.i]=r.arr;save();}}ed=null;$('#ed').classList.add('hide');missingSession=null;lists();switchTab('write');render()};
 function guides(){const{f,i}=ed,w=[...f.words[i]],g=gd.getContext('2d');g.setTransform(K,0,0,K,0,0);g.clearRect(0,0,gd.width,gd.height);g.strokeStyle='#8886';g.fillStyle='#888';g.font='14px sans-serif';g.setLineDash([]);
 w.forEach((c,k)=>{g.strokeRect(k*CW+.5,.5,CW-1,CH-1);g.beginPath();g.moveTo(k*CW,BASE);g.lineTo(k*CW+CW,BASE);g.stroke();g.fillText(c,k*CW+6,18)});
 g.setLineDash([3,4]);g.beginPath();for(let k=0;k<w.length;k++){g.moveTo(k*CW,BASE-TX);g.lineTo(k*CW+CW,BASE-TX)}g.stroke();g.setLineDash([])}
@@ -122,7 +130,8 @@ function mark(st){guides();const g=gd.getContext('2d');g.setTransform(1,0,0,1,0,
 function show(){const{f,i}=ed,n=[...f.words[i]].length;ed.st=[];
 ink.width=gd.width=n*CW*K;ink.height=gd.height=CH*K;
 const cv=$('#cv');cv.style.width=n*CW+'px';cv.style.aspectRatio=`${n*CW}/${CH}`;guides();
-$('#wt').textContent=`Wort ${i+1} von ${f.words.length}: ${f.words[i]}${f.slots[i]?'  (✓ gespeichert – neu schreiben überschreibt)':''}`;
+const ch=f.words[i],special=isSpecial(ch)&&[...ch].length===1;const variant=special?f.words.slice(0,i+1).filter(w=>w===ch).length:0;
+$('#wt').textContent=`${special?'Sonderzeichen '+ch+' – Variante '+variant+' von '+Math.max(3,f.words.filter(w=>w===ch).length):'Wort '+(i+1)+' von '+f.words.length+': '+ch}${f.slots[i]?'  (✓ gespeichert – neu schreiben überschreibt)':''}`;
 $('#wj').innerHTML=f.words.map((x,k)=>`<option value="${k}">${f.slots[k]?'✓ ':''}${k+1}. ${esc(x)}</option>`).join('');$('#wj').value=i;cover()}
 function counts(f){const c={};f.words.forEach((w,k)=>{const s=f.slots[k];[...w].forEach((ch,j)=>{if(s&&s[j])c[ch]=(c[ch]||0)+1})});return c}
 function cover(){const c=counts(ed.f);$('#cov').innerHTML=[...new Set([...CHARS,...Object.keys(c)])].map(ch=>`<span class="chip ${(c[ch]||0)>=3?'ok':''}">${esc(ch)} ${c[ch]||0}</span>`).join('')}
@@ -167,8 +176,43 @@ while(st.length){const p=st.pop();px.push(p);const x=p%w,y=(p/w)|0;if(x<x0)x0=x;
 for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=w||ny>=h)continue;const q=ny*w+nx;if(!lab[q]&&d[q*4+3]>20){lab[q]=n;st.push(q)}}}
 out.push({px,x0,y0,x1,y1})}
 return out}
-/* Ein Zeichen verarbeiten: fremde Punkte finden/entfernen, auf einheitliche Größe bringen, auf die Grundlinie setzen.
+/* Ein Zeichen verarbeiten: fremde Punkte finden/entfernen, Originalgröße bewahren und auf die Grundlinie setzen.
    cv = Zellen-Canvas (CW*kk x CH*kk, Grundlinie bei BASE*kk) */
+// Aus der Buchstabenform und den Hilfslinien die passende Grundlinie erkennen.
+// Die Ausrichtung nutzt die Form statt die absolute Lage des gezeichneten Buchstabens:
+// so werden versehentlich höher/tiefer geschriebene Zeichen korrigiert.
+function detectBaselineOffset(data,W,H,components,ch,kk){
+ const bottom=Math.max(...components.map(c=>c.y1))/kk;
+ const height=(Math.max(...components.map(c=>c.y1))-Math.min(...components.map(c=>c.y0))+1)/kk;
+ // Satzzeichen haben ihre eigene vertikale Lage relativ zur Grundlinie.
+ if('.,'.includes(ch))return ch===','?Math.min(11,height*.55):0;
+ if(ch===';'||ch===':')return ch===';'?Math.min(10,height*.3):0;
+ if(ch==='_' )return Math.min(10,height*.4);
+ if(ch==='-'||ch==='–'||ch==='—'||ch==='=')return -Math.max(10,Math.min(24,height));
+ if(ch==="'"||ch==='’'||ch==='`'||ch==='"'||ch==='“'||ch==='”'||ch==='^'||ch==='°')return -Math.max(30,Math.min(55,BASE*.35));
+ // Unterlängen: Erkenne den Übergang vom Buchstabenkörper zum Abstrich anhand
+ // der Breite der Tinte je Zeile. Bei schmalen Abstrichen ist die Grundlinie
+ // dort, wo der breite Körper endet, und nicht am untersten Tintenpixel.
+ if('gjpqy'.includes(ch)){
+  const rows=new Int32Array(H);
+  let minY=H,maxY=0;
+  for(const c of components){minY=Math.min(minY,c.y0);maxY=Math.max(maxY,c.y1);for(const pix of c.px)rows[(pix/W)|0]++}
+  const total=maxY-minY+1;
+  const from=Math.round(minY+total*.42),to=Math.round(minY+total*.86);
+  let best=-1,score=-Infinity;
+  for(let y=from;y<=to;y++){
+   const upper=rows[Math.max(0,y-Math.round(5*kk))],lower=rows[Math.min(H-1,y+Math.round(5*kk))];
+   const scoreNow=(upper-lower)*1.5 + rows[y]*.3 - Math.abs(y-(minY+total*.67))*.1;
+   if(scoreNow>score){score=scoreNow;best=y}
+  }
+  // Fehlt ein erkennbarer Übergang, wird eine typische Unterlänge verwendet.
+  const candidate=best>=0?best/kk:bottom-height*.23;
+  const extension=bottom-candidate;
+  return extension>3&&extension<height*.65?extension:Math.min(height*.28,28);
+ }
+ // Bei allen normalen Zeichen ruht die Unterkante auf derselben Grundlinie.
+ return 0;
+}
 function process(cv,ch,kk,rm,norm){
 const W=cv.width,H=cv.height,g=cv.getContext('2d'),im=g.getImageData(0,0,W,H),d=im.data,cs=comps(d,W,H);
 if(!cs.length)return{g:null,strays:[]};
@@ -179,35 +223,104 @@ if(rm&&strays.length){for(const c of strays)for(const p of c.px)d[p*4+3]=0;g.put
 const dots=DL.includes(ch)?ex.slice(0,al):[],body=keep.filter(c=>!dots.includes(c));
 const box=a=>a.reduce((r,c)=>[Math.min(r[0],c.x0),Math.min(r[1],c.y0),Math.max(r[2],c.x1),Math.max(r[3],c.y1)],[W,H,-1,-1]);
 const F=box(keep),B=box(body.length?body:keep),pad=2*kk;
-const x0=Math.max(0,F[0]-pad),y0=Math.max(0,F[1]-pad),x1=Math.min(W-1,F[2]+pad),y1=Math.min(H-1,F[3]+pad),w=x1-x0+1,h=y1-y0+1,bh=(B[3]-B[1]+1)/kk;
-let s=1,dy=(y1+1)/kk-BASE;
-if(norm){const t=XS.includes(ch)?TX:ch=='t'?TA*.8:TS.includes(ch)?TA:0;
-if(t){s=Math.min(2,Math.max(.5,t/bh));dy=s*(y1-B[3])/kk}
-else if(DS.includes(ch)){s=Math.min(2,Math.max(.5,TX*1.45/bh));dy=-TX+s*(y1+1-B[1])/kk}
-else if(ch=='.')dy=0}
+const x0=Math.max(0,F[0]-pad),y0=Math.max(0,F[1]-pad),x1=Math.min(W-1,F[2]+pad),y1=Math.min(H-1,F[3]+pad),w=x1-x0+1,h=y1-y0+1;
+// Keine Normierung: Pixelbreite und -höhe des handgeschriebenen Zeichens
+// bleiben erhalten. Nur sein Abstand zur gemeinsamen Grundlinie wird gespeichert.
+const s=1,dy=detectBaselineOffset(d,W,H,keep,ch,kk);
 const o=document.createElement('canvas');o.width=Math.max(1,Math.round(w*s));o.height=Math.max(1,Math.round(h*s));
 const og=o.getContext('2d');og.imageSmoothingQuality='high';og.drawImage(cv,x0,y0,w,h,0,0,o.width,o.height);
 return{g:{d:o.toDataURL(),w:o.width/kk,h:o.height/kk,dy},strays}}
-function grab(){const rm=$('#rm').checked,nm=$('#nm').checked,arr=[],st=[];
+function grab(){const rm=true,nm=true,arr=[],st=[];
 [...ed.f.words[ed.i]].forEach((ch,i)=>{const t=document.createElement('canvas');t.width=CW*K;t.height=CH*K;t.getContext('2d').drawImage(ink,i*CW*K,0,CW*K,CH*K,0,0,CW*K,CH*K);
 const r=process(t,ch,K,rm,nm);arr.push(r.g);if(r.strays.length)st.push({i,ch,n:r.strays.length,b:r.strays.map(c=>[c.x0,c.y0,c.x1,c.y1])})});
 return{arr,st}}
 function go(k){if(!ed)return;let n=0;
-if(ed.st.length){const r=grab();if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return}
+if(ed.st.length){const r=grab();
 ed.f.slots[ed.i]=r.arr;n=r.st.reduce((a,s)=>a+s.n,0);save();lists()}
-if(missingSession?.id===ed.f.id&&k>ed.i){const next=missingSession.chars.find(ch=>!counts(ed.f)[ch]);if(next){const idx=ed.f.words.findIndex((w,j)=>w===next&&!(ed.f.slots[j]||[])[0]);if(idx>=0)k=idx}}
+if(missingSession?.id===ed.f.id&&k>ed.i){const idx=nextMissingTask(ed.f,missingSession.chars);if(idx>=0)k=idx}
 ed.i=Math.max(0,Math.min(ed.f.words.length-1,k));show();$('#msg').textContent=n?n+' fremde(r) Punkt(e) automatisch entfernt.':''}
 $('#nx').onclick=()=>go(ed.i+1);$('#pv').onclick=()=>go(ed.i-1);$('#wj').onchange=e=>go(+e.target.value);
-$('#ck').onclick=()=>{if(!ed)return;const r=grab();if(r.st.length){mark(r.st);$('#msg').textContent=r.st.reduce((a,s)=>a+s.n,0)+' fremde(r) Punkt(e) gefunden und rot markiert.'}else{guides();$('#msg').textContent='Keine fremden Punkte gefunden.'}};
-$('#dn').onclick=()=>{if(!ed)return;if(ed.st.length){const r=grab();if(r.st.length&&!$('#rm').checked){mark(r.st);$('#msg').textContent=MSGDOT;return}ed.f.slots[ed.i]=r.arr;save()}ed=null;$('#ed').classList.add('hide');lists();if(missingSession){missingSession=null;switchTab('write');render()}};
-$('#rn').onclick=async()=>{if(!ed)return;$('#msg').textContent='Gleiche an …';let n=0;const f=ed.f;
-for(const[k,w]of f.words.entries()){const s=f.slots[k];if(!s)continue;
-for(const[j,ch]of[...w].entries()){const gl=s[j];if(!gl)continue;const im=await loadImg(gl.d);if(!im)continue;
-const kk=im.width/gl.w,t=document.createElement('canvas');t.width=Math.round((CW+20)*kk);t.height=Math.round(CH*kk);
-t.getContext('2d').drawImage(im,Math.round(10*kk),Math.max(0,Math.round((BASE+gl.dy-gl.h)*kk)));
-const r=process(t,ch,kk,true,true);if(r.g){s[j]=r.g;n++}}}
-save();show();$('#msg').textContent=n+' Zeichen angeglichen.'};
+$('#dn').onclick=()=>{if(!ed)return;if(ed.st.length){const r=grab();ed.f.slots[ed.i]=r.arr;save()}ed=null;$('#ed').classList.add('hide');lists();if(missingSession){missingSession=null;switchTab('write');render()}};
 
+/* Erfasste Tintenpixel pro Ausgabeseite, getrennt vom Papier.
+   Die Bildabtastung erzeugt radierbare kurze Stiftobjekte statt einer Textur. */
+let GN_PAGES=[];
+function gnVectorize(canvas,H){
+ // Nur Mittellinien nachzeichnen, keine waagerechten Bildstreifen als Stiftobjekte.
+ const w=620,h=Math.max(2,Math.round(H*w/PW));
+ const c=document.createElement('canvas');c.width=w;c.height=h;
+ const g=c.getContext('2d',{willReadFrequently:true});
+ g.drawImage(canvas,0,0,w,h);
+ const rgba=g.getImageData(0,0,w,h).data,ink=new Uint8Array(w*h);
+ let left=w,top=h,right=0,bottom=0;
+ for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+  const k=y*w+x;if(rgba[k*4+3]>=58){ink[k]=1;
+   if(x<left)left=x;if(x>right)right=x;if(y<top)top=y;if(y>bottom)bottom=y;
+  }
+ }
+ if(right<=left||bottom<=top)return [];
+ const offsets=[-w,-w+1,1,w+1,w,w-1,-1,-w-1];
+ let del=[];
+ for(let round=0;round<30;round++){
+  let changed=false;
+  for(let phase=0;phase<2;phase++){
+   del=[];
+   for(let y=Math.max(1,top);y<=Math.min(h-2,bottom);y++)for(let x=Math.max(1,left);x<=Math.min(w-2,right);x++){
+    const k=y*w+x;if(!ink[k])continue;
+    const n=offsets.map(d=>ink[k+d]);
+    const sum=n.reduce((a,v)=>a+v,0);
+    if(sum<2||sum>6)continue;
+    let changes=0;for(let j=0;j<8;j++)if(n[j]===0&&n[(j+1)%8]===1)changes++;
+    if(changes!==1)continue;
+    if(phase===0){if(n[0]&&n[2]&&n[4]||n[2]&&n[4]&&n[6])continue;}
+    else if(n[0]&&n[2]&&n[6]||n[0]&&n[4]&&n[6])continue;
+    del.push(k);
+   }
+   if(del.length){changed=true;for(const k of del)ink[k]=0;}
+  }
+  if(!changed)break;
+ }
+ const degree=new Uint8Array(w*h),nodes=[];
+ for(let y=Math.max(1,top);y<=Math.min(h-2,bottom);y++)for(let x=Math.max(1,left);x<=Math.min(w-2,right);x++){
+  const k=y*w+x;if(!ink[k])continue;
+  let v=0;for(const d of offsets)if(ink[k+d])v++;
+  degree[k]=v;nodes.push(k);
+ }
+ const used=new Set(),paths=[];
+ const edge=(a,b)=>String(Math.min(a,b))+','+String(Math.max(a,b));
+ function walk(start,next){
+  let prev=start,cur=next,seq=[start,next];used.add(edge(start,next));
+  while(degree[cur]===2&&seq.length<3500){
+   const opts=offsets.map(d=>cur+d).filter(k=>ink[k]&&k!==prev);
+   if(!opts.length)break;
+   const n=opts[0],key=edge(cur,n);if(used.has(key))break;
+   used.add(key);seq.push(n);prev=cur;cur=n;
+  }
+  if(seq.length<4)return;
+  const result=[],scaleX=PW/w,scaleY=H/h;
+  for(const k of seq){
+   const px=(k%w+.5)*scaleX,py=(Math.floor(k/w)+.5)*scaleY;
+   if(!result.length||Math.hypot(px-result[result.length-1][0],py-result[result.length-1][1])>=1.25)
+    result.push([px,py]);
+  }
+  if(result.length>=2)paths.push(result);
+ }
+ for(const k of nodes)if(degree[k]!==2){
+  for(const d of offsets){const n=k+d;if(!ink[n]||used.has(edge(k,n)))continue;walk(k,n);}
+ }
+ for(const k of nodes)for(const d of offsets){const n=k+d;
+  if(ink[n]&&!used.has(edge(k,n)))walk(k,n);
+ }
+ return paths.sort((a,b)=>a[0][1]-b[0][1]||a[0][0]-b[0][0]);
+}
+function gnLetterPage(bg,H){const c=document.createElement('canvas');c.width=1224;c.height=1584;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);
+ const s=Math.min(c.width/bg.width,c.height/bg.height);g.drawImage(bg,(c.width-bg.width*s)/2,(c.height-bg.height*s)/2,bg.width*s,bg.height*s);
+ return c.toDataURL('image/jpeg',.87);
+}
+function gnThumbnail(page){const c=document.createElement('canvas');c.width=320;c.height=450;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);
+ const s=Math.min(c.width/page.width,c.height/page.height);g.drawImage(page,(c.width-page.width*s)/2,(c.height-page.height*s)/2,page.width*s,page.height*s);
+ return c.toDataURL('image/jpeg',.82);
+}
 /* Rendern */
 const IC={};
 async function variants(f){const V={};for(const[k,w]of f.words.entries()){const s=f.slots[k];if(!s)continue;for(const[j,ch]of[...w].entries()){const g=s[j];if(!g)continue;IC[g.d]=IC[g.d]||await loadImg(g.d);if(IC[g.d])(V[ch]=V[ch]||[]).push({...g,img:IC[g.d]})}}return V}
@@ -219,14 +332,14 @@ g.stroke()}
 function showMissing(f,chars){
  const panel=$('#missingpanel'),list=$('#missingchars');
  if(!chars.length){panel.classList.add('hide');return}
- list.textContent=chars.map(c=>c===' '?'[Leerzeichen]':c).join('  ');
+ const cc=counts(f);list.textContent=chars.map(c=>isSpecial(c)?`${c} (${cc[c]||0}/3 Varianten)`:c===' '?'[Leerzeichen]':c).join('  ');
  $('#addmissing').disabled=!!f.builtin;
  $('#addmissing').textContent=f.builtin?'Eigene Handschrift wählen':'Fehlende Zeichen jetzt schreiben';
- $('#missinghint').textContent=f.builtin?'Eingebaute Handschriften können nicht bearbeitet werden. Lege unter „Handschriften“ eine eigene an.':'Diese Zeichen fehlen noch und wurden beim Umwandeln übersprungen. Ergänze sie direkt in deiner Handschrift.';
+ $('#missinghint').textContent=f.builtin?'Eingebaute Handschriften können nicht bearbeitet werden. Lege unter „Handschriften“ eine eigene an.':'Fehlende Zeichen kannst du ergänzen. Für jedes Sonderzeichen stehen drei unabhängig gespeicherte Varianten zur Verfügung; bereits geschriebene bleiben erhalten.';
  panel.classList.remove('hide');
 }
 async function render(){
-const btn=$('#go'),out=$('#pages');$('#missingpanel').classList.add('hide');btn.disabled=true;btn.textContent='Schreibe …';out.innerHTML='';
+GN_PAGES=[];const btn=$('#go'),out=$('#pages');$('#exportbar').classList.add('hide');$('#missingpanel').classList.add('hide');btn.disabled=true;btn.textContent='Schreibe …';out.innerHTML='';
 try{
 await ready;const f=[...BI,...S.fonts].find(x=>x.id==$('#fsel').value);
 if(!f){out.textContent='Bitte zuerst unter „Handschriften“ eine Handschrift anlegen.';return}
@@ -256,9 +369,11 @@ const col=$('#col').value;
 for(const ic of pages.filter(p=>p.dirty)){
 const ig=ic.getContext('2d');ig.globalCompositeOperation='source-in';ig.fillStyle=col;ig.fillRect(0,0,PW,PH);
 const pc=document.createElement('canvas');pc.width=PW*Q;pc.height=PH*Q;paper(pc,bsel,PH,lh,m,bgImg);
+const gnPaper=gnLetterPage(pc,PH),gnPaths=gnVectorize(ic,PH);
 const g=pc.getContext('2d');g.setTransform(1,0,0,1,0,0);g.globalCompositeOperation='multiply';g.globalAlpha=.94;g.drawImage(ic,0,0);ic.width=ic.height=1;
+GN_PAGES.push({height:PH,paths:gnPaths,paper:gnPaper,paperThumb:gnThumbnail(pc)});
 const im=new Image();im.className='pg';im.src=pc.toDataURL('image/jpeg',.93);out.append(im)}
-showMissing(f,[...miss]);
+showMissing(f,[...miss]);$('#exportbar').classList.remove('hide');$('#exportmessage').textContent='';
 }finally{btn.disabled=false;btn.textContent='In Handschrift umwandeln'}}
 $('#go').onclick=render;
 $('#ex').onclick=()=>{const j=JSON.stringify({fonts:S.fonts,bgs:S.bgs});$('#bk').value=j;try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([j],{type:'application/json'}));a.download='handschriften.json';a.click()}catch(e){}$('#bm').textContent='Sicherung erstellt ('+Math.round(j.length/1024)+' KB). Kopiere den Text und bewahre ihn in einer Datei auf, oder nutze die heruntergeladene Datei.'};
@@ -283,3 +398,51 @@ for(const[id,name,fam,px,j]of FONTS){const words=[],slots={};for(let v=0;v<5;v++
 lists()})();
 loadDB().then(lists);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+/* Export: PDF, PNG und experimenteller nativer Goodnotes-Stiftmodus. */
+function downloadBytes(data,name,type){const blob=data instanceof Blob?data:new Blob([data],{type});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000)}
+function pdfFromPageImages(images){
+ const enc=new TextEncoder(),parts=[],offsets=[0];let length=0;
+ const put=b=>{parts.push(b);length+=b.length};const str=t=>put(enc.encode(t));
+ str('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+ const objs=[];let k=3;
+ for(const im of images){objs.push({page:k++,content:k++,image:k++,im})}
+ const objects=new Map();objects.set(1,'<< /Type /Catalog /Pages 2 0 R >>');
+ objects.set(2,`<< /Type /Pages /Kids [${objs.map(o=>o.page+' 0 R').join(' ')}] /Count ${objs.length} >>`);
+ for(const o of objs){
+  const w=o.im.naturalWidth,h=o.im.naturalHeight;
+  objects.set(o.page,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${w/2} ${h/2}] /Resources << /XObject << /Im${o.image} ${o.image} 0 R >> >> /Contents ${o.content} 0 R >>`);
+  const stream=`q\n${w/2} 0 0 ${h/2} 0 0 cm\n/Im${o.image} Do\nQ\n`;
+  objects.set(o.content,`<< /Length ${enc.encode(stream).length} >>\nstream\n${stream}endstream`);
+  const raw=atob(o.im.src.split(',')[1]),binary=new Uint8Array(raw.length);for(let j=0;j<raw.length;j++)binary[j]=raw.charCodeAt(j);
+  objects.set(o.image,{head:`<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${binary.length} >>\nstream\n`,binary});
+ }
+ for(let i=1;i<k;i++){offsets[i]=length;str(`${i} 0 obj\n`);const o=objects.get(i);if(typeof o==='string')str(o);else{str(o.head);put(o.binary);str('\nendstream')}str('\nendobj\n')}
+ const xref=length;str(`xref\n0 ${k}\n0000000000 65535 f \n`);
+ for(let i=1;i<k;i++)str(String(offsets[i]).padStart(10,'0')+' 00000 n \n');
+ str(`trailer\n<< /Size ${k} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+ return new Blob(parts,{type:'application/pdf'});
+}
+$('#exportbutton').onclick=async()=>{
+ const kind=$('#exportformat').value,msg=$('#exportmessage'),images=[...document.querySelectorAll('#pages img.pg')];
+ if(!images.length){msg.textContent='Bitte zuerst Text umwandeln.';return}
+ try{
+  if(kind==='goodnotes'){
+   if(!GN_PAGES.length)throw Error('Keine Handschriftseiten vorhanden.');
+   msg.textContent='Goodnotes-Datei mit normalen Stiftstrichen wird erstellt …';
+   for(let i=0;i<GN_PAGES.length;i++){
+    const doc=await gnCreate(GN_PAGES[i],$('#col').value);
+    downloadBytes(doc,'handschrift-seite-'+String(i+1).padStart(2,'0')+'.goodnotes','application/octet-stream');
+    msg.textContent=(i+1)+' von '+GN_PAGES.length+' Goodnotes-Seiten erstellt.';
+    await new Promise(resolve=>setTimeout(resolve,30));
+   }
+   msg.textContent+=' Bitte prüfen, ob die Stiftstriche angezeigt werden und radierbar sind (Goodnotes-Importtest steht noch aus).';
+  }
+  else if(kind==='pdf'){downloadBytes(pdfFromPageImages(images),'handschrift.pdf','application/pdf');msg.textContent='PDF erstellt.'}
+  else{for(let i=0;i<images.length;i++){
+   const canvas=document.createElement('canvas');canvas.width=images[i].naturalWidth;canvas.height=images[i].naturalHeight;canvas.getContext('2d').drawImage(images[i],0,0);
+   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+   downloadBytes(blob,`handschrift-seite-${String(i+1).padStart(2,'0')}.png`,'image/png');
+  }msg.textContent=images.length===1?'PNG erstellt.':`${images.length} PNG-Dateien erstellt. Der Browser kann mehrere Downloads bestätigen lassen.`}
+ }catch(e){console.error(e);msg.textContent='Export fehlgeschlagen: '+e.message}
+};
