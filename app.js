@@ -63,8 +63,10 @@ const done=f=>Object.values(f.slots).reduce((a,s)=>a+s.filter(Boolean).length,0)
 function lists(){
 const fs=$('#fsel'),bs=$('#bsel'),pf=fs.value,pb=bs.value;
 fs.innerHTML=[...BI,...S.fonts].map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('')||'<option value="">– keine –</option>';
-bs.innerHTML=[['plain','Weiß'],['lined','Liniert'],['grid','Kariert'],...S.bgs.map(b=>[b.id,b.name])].map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('');
-if(pf)fs.value=pf;if(pb)bs.value=pb;
+bs.innerHTML=[['dotted','Gepunktet'],['plain','Weiß'],['lined','Liniert'],['grid','Kariert'],...S.bgs.map(b=>[b.id,b.name])].map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('');
+if(pf)fs.value=pf;
+if(pb && [...bs.options].some(o=>o.value===pb))bs.value=pb;
+else bs.value='dotted';
 $('#flist').innerHTML=S.fonts.map(f=>`<div class="row"><b>${esc(f.name)}</b><small>${done(f)} von ${total(f)} Zeichen geschrieben</small><button data-a="edit" data-id="${f.id}">Weiterschreiben</button><button data-a="rename" data-id="${f.id}">Umbenennen</button><button data-a="del" data-id="${f.id}">Löschen</button></div>`).join('')||'<small>Noch keine Handschrift angelegt.</small>';
 $('#blist').innerHTML=S.bgs.map(b=>`<div><img class="th" src="${b.d}"><br><small>${esc(b.name)}</small><br><button data-ba="rename" data-bid="${b.id}">Umbenennen</button><button data-ba="del" data-bid="${b.id}">Löschen</button></div>`).join('')}
 $('#flist').onclick=e=>{const b=e.target.closest('button');if(!b)return;
@@ -129,7 +131,7 @@ g.setLineDash([3,4]);g.beginPath();for(let k=0;k<w.length;k++){g.moveTo(k*CW,BAS
 function mark(st){guides();const g=gd.getContext('2d');g.setTransform(1,0,0,1,0,0);g.strokeStyle='#e11';g.lineWidth=2*K;for(const s of st)for(const b of s.b)g.strokeRect(s.i*CW*K+b[0]-5,b[1]-5,b[2]-b[0]+10,b[3]-b[1]+10)}
 function show(){const{f,i}=ed,n=[...f.words[i]].length;ed.st=[];
 ink.width=gd.width=n*CW*K;ink.height=gd.height=CH*K;
-const cv=$('#cv');cv.style.width=n*CW+'px';cv.style.aspectRatio=`${n*CW}/${CH}`;guides();
+const cv=$('#cv');cv.style.width=n*CW+'px';cv.style.height=CH+'px';$('#writing-scroll').scrollLeft=0;guides();
 const ch=f.words[i],special=isSpecial(ch)&&[...ch].length===1;const variant=special?f.words.slice(0,i+1).filter(w=>w===ch).length:0;
 $('#wt').textContent=`${special?'Sonderzeichen '+ch+' – Variante '+variant+' von '+Math.max(3,f.words.filter(w=>w===ch).length):'Wort '+(i+1)+' von '+f.words.length+': '+ch}${f.slots[i]?'  (✓ gespeichert – neu schreiben überschreibt)':''}`;
 $('#wj').innerHTML=f.words.map((x,k)=>`<option value="${k}">${f.slots[k]?'✓ ':''}${k+1}. ${esc(x)}</option>`).join('');$('#wj').value=i;cover()}
@@ -224,12 +226,12 @@ const dots=DL.includes(ch)?ex.slice(0,al):[],body=keep.filter(c=>!dots.includes(
 const box=a=>a.reduce((r,c)=>[Math.min(r[0],c.x0),Math.min(r[1],c.y0),Math.max(r[2],c.x1),Math.max(r[3],c.y1)],[W,H,-1,-1]);
 const F=box(keep),B=box(body.length?body:keep),pad=2*kk;
 const x0=Math.max(0,F[0]-pad),y0=Math.max(0,F[1]-pad),x1=Math.min(W-1,F[2]+pad),y1=Math.min(H-1,F[3]+pad),w=x1-x0+1,h=y1-y0+1;
-// Keine Normierung: Pixelbreite und -höhe des handgeschriebenen Zeichens
-// bleiben erhalten. Nur sein Abstand zur gemeinsamen Grundlinie wird gespeichert.
-const s=1,dy=detectBaselineOffset(d,W,H,keep,ch,kk);
-const o=document.createElement('canvas');o.width=Math.max(1,Math.round(w*s));o.height=Math.max(1,Math.round(h*s));
-const og=o.getContext('2d');og.imageSmoothingQuality='high';og.drawImage(cv,x0,y0,w,h,0,0,o.width,o.height);
-return{g:{d:o.toDataURL(),w:o.width/kk,h:o.height/kk,dy},strays}}
+// Originale Zeichenabmessungen pixelgenau erhalten. Beim Speichern wird
+// ausschließlich die Grundlinienlage (dy) berechnet, niemals die Form skaliert.
+const dy=detectBaselineOffset(d,W,H,keep,ch,kk);
+const o=document.createElement('canvas');o.width=w;o.height=h;
+o.getContext('2d').drawImage(cv,x0,y0,w,h,0,0,w,h);
+return{g:{d:o.toDataURL(),w:w/kk,h:h/kk,dy},strays}}
 function grab(){const rm=true,nm=true,arr=[],st=[];
 [...ed.f.words[ed.i]].forEach((ch,i)=>{const t=document.createElement('canvas');t.width=CW*K;t.height=CH*K;t.getContext('2d').drawImage(ink,i*CW*K,0,CW*K,CH*K,0,0,CW*K,CH*K);
 const r=process(t,ch,K,rm,nm);arr.push(r.g);if(r.strays.length)st.push({i,ch,n:r.strays.length,b:r.strays.map(c=>[c.x0,c.y0,c.x1,c.y1])})});
@@ -325,10 +327,23 @@ function gnThumbnail(page){const c=document.createElement('canvas');c.width=320;
 const IC={};
 async function variants(f){const V={};for(const[k,w]of f.words.entries()){const s=f.slots[k];if(!s)continue;for(const[j,ch]of[...w].entries()){const g=s[j];if(!g)continue;IC[g.d]=IC[g.d]||await loadImg(g.d);if(IC[g.d])(V[ch]=V[ch]||[]).push({...g,img:IC[g.d]})}}return V}
 function paper(c,type,H,lh,m,bg){const g=c.getContext('2d');g.scale(Q,Q);g.fillStyle='#fdfcf8';g.fillRect(0,0,PW,H);if(bg){g.drawImage(bg,0,0,PW,H);return}
-g.strokeStyle='#a9c1da';g.lineWidth=1.5;g.beginPath();
+g.strokeStyle='#a9c1da';g.fillStyle='#c3c8d2';g.lineWidth=1.5;g.beginPath();
 if(type=='lined')for(let y=m.t+lh+6;y<H-m.b+10;y+=lh){g.moveTo(m.l-20,y);g.lineTo(PW-m.r+20,y)}
 if(type=='grid'){const st=lh/2;for(let y=m.t;y<H;y+=st){g.moveTo(0,y);g.lineTo(PW,y)}for(let x=0;x<PW;x+=st){g.moveTo(x,0);g.lineTo(x,H)}}
-g.stroke()}
+g.stroke();
+if(type=='dotted'){
+ // Jede Schreibgrundlinie liegt exakt zwischen zwei Punktreihen.
+ // Vertikale Punktreihen folgen dem wirklichen Zeilenabstand (lh),
+ // nicht einem unabhängig gerundeten Raster.
+ const stX=Math.max(18,lh/2),stY=lh,r=Math.max(1.1,Math.min(1.8,stX/26));
+ for(let row=0, y=m.t+stY/2;y<=H-m.b;row++,y=m.t+stY/2+row*stY){
+  for(let x=m.l;x<=PW-m.r;x+=stX){
+   g.beginPath();
+   g.arc(x,y,r,0,Math.PI*2);
+   g.fill();
+  }
+ }
+}}
 function showMissing(f,chars){
  const panel=$('#missingpanel'),list=$('#missingchars');
  if(!chars.length){panel.classList.add('hide');return}
@@ -351,7 +366,7 @@ const m={t:+$('#mt').value,l:+$('#ml').value,r:+$('#mr').value,b:+$('#mb').value
 const pages=[],last={},miss=new Set();let ctx,y,x,x0,sl,by;
 const line=()=>{sl=rnd(-1,1)*.006*R;x0=m.l+rnd(0,12)*R;x=x0;by=rnd(-2,2)*R};
 const newPage=()=>{const c=document.createElement('canvas');c.width=PW*Q;c.height=PH*Q;pages.push(c);ctx=c.getContext('2d');ctx.scale(Q,Q);ctx.imageSmoothingQuality='high';y=m.t+lh;line()};
-const nl=()=>{y+=lh*(1+rnd(-.04,.04)*R);if(y>PH-m.b)newPage();else line()};
+const nl=()=>{y+=lh*(bsel==='dotted'?1:1+rnd(-.04,.04)*R);if(y>PH-m.b)newPage();else line()};
 const pick=ch=>{const a=V[ch]||V[ch.toLowerCase()]||V[ch.toUpperCase()];if(!a){miss.add(ch);return null}let i=0;if(a.length>1){do i=Math.random()*a.length|0;while(i===last[ch])}last[ch]=i;return a[i]};
 newPage();
 for(const para of $('#txt').value.split('\n')){
@@ -359,9 +374,17 @@ for(const word of para.split(/\s+/).filter(Boolean)){
 const items=[...word].map(c=>({g:pick(c),gp:(3+rnd(-1.5,2.5)*R)*s}));
 const adv=o=>(o.g?o.g.w*s:20*s)+o.gp,wd=items.reduce((a,o)=>a+adv(o),0);
 if(x+wd>RM&&x>x0+1)nl();
-for(const o of items){if(o.g){const w=o.g.w*s,h=o.g.h*s,sv=1+rnd(-.05,.05)*R,a=rnd(-3,3)*R*Math.PI/180;
+for(const o of items){if(o.g){
+// Alle Zeichen erhalten ausschließlich denselben vom Größenregler bestimmten Faktor.
+// Weder Kleinbuchstaben noch Großbuchstaben oder Varianten werden einzeln normiert.
+const w=o.g.w*s,h=o.g.h*s,a=rnd(-3,3)*R*Math.PI/180;
+// Vertikale Verschiebung legt die erkannte Grundlinie bei Unregelmäßigkeit 0
+// exakt auf y. dy korrigiert Unterlängen, ohne die Zeichenhöhe zu verändern.
 const gy=y+by+sl*(x-m.l)+o.g.dy*s-h+rnd(-3,3)*R*s;
-ctx.save();ctx.translate(x+w/2,gy+h/2);ctx.rotate(a);ctx.scale(sv,sv);ctx.drawImage(o.g.img,-w/2,-h/2,w,h);ctx.restore();ctx.canvas.dirty=1}
+ctx.save();
+if(R){ctx.translate(x+w/2,gy+h/2);ctx.rotate(a);ctx.drawImage(o.g.img,-w/2,-h/2,w,h)}
+else ctx.drawImage(o.g.img,x,gy,w,h);
+ctx.restore();ctx.canvas.dirty=1}
 x+=adv(o)}
 x+=60*s*wsb*(1+rnd(-.45,.8)*R*1.3)}
 nl()}

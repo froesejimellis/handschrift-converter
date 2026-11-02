@@ -19,7 +19,8 @@ select,input[type=text],input[type=number]{background:var(--bg);border:1px solid
 .hide{display:none}
 .chip{display:inline-block;min-width:34px;text-align:center;margin:2px;padding:2px 5px;border-radius:6px;font-size:13px;background:#c0392b44}
 .chip.ok{background:#2e8b5755}
-.cv{position:relative;background:#fff;max-width:100%;margin:8px 0}
+.writing-scroll{width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;margin:8px 0}
+.cv{position:relative;background:#fff;max-width:none;margin:0;flex-shrink:0}
 .cv canvas{position:absolute;left:0;top:0;width:100%;height:100%;touch-action:none}
 img.pg{width:100%;border:1px solid var(--bd);margin:8px 0;background:#fff}
 .th{width:90px;height:120px;object-fit:cover;border:1px solid var(--bd)}
