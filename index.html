@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Handschrift Converter 3.0</title>
-<meta name="theme-color" content="#2f4cb5">
+<title>Handschrift Converter 3.1</title>
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#2f4cb5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1b1d" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Handschrift">
 <link rel="manifest" href="manifest.webmanifest">
@@ -25,6 +27,7 @@
 <label>Hintergrund<select id="bsel"></select></label>
 <label>Größe<input type="range" id="size" min="25" max="90" value="25"></label>
 <label>Zeilenabstand<input type="range" id="lh" min="40" max="120" value="89"></label>
+<label>Schrift höher / tiefer (px)<input type="range" id="boff" min="-30" max="30" value="0"></label>
 <label>Wortabstand<input type="range" id="ws" min="30" max="160" value="70"></label>
 <label>Unregelmäßigkeit<input type="range" id="rnd" min="0" max="100" value="0"></label>
 <label>Tintenfarbe<input type="color" id="col" value="#000000"></label>
@@ -56,13 +59,14 @@
 <small id="bm"></small></div>
 <div class="card"><b>Ordner auf dem PC (Chrome/Edge)</b><div class="row"><button id="dp">Ordner verbinden / erlauben</button><button id="dl">Aus Ordner laden</button></div><small id="dm"></small></div>
 <div class="card hide" id="ed">
+<small>Zeichen antippen, um alle seine Schreibproben zu löschen. Unter dem Feld löscht ✕ nur das Zeichen darüber.</small>
 <div id="cov" aria-label="Zeichenvarianten"></div>
 <div class="row editor-tools"><select id="wj" aria-label="Wort auswählen" style="max-width:260px"></select><label style="flex-direction:row;align-items:center">Stiftdicke <input type="range" id="pen" min="3" max="9" value="5"></label></div>
 <div class="row editor-tools"><label class="checkline"><input type="checkbox" id="stabilize"> Strichstabilisierung</label><label>Stärke <input type="range" id="stability" min="0" max="100" value="45"></label></div>
 <div class="row editor-actions"><button id="un">Rückgängig</button><button id="cl">Leeren</button><button id="pv">← Zurück</button><button id="nx" class="pri">Speichern &amp; weiter →</button><button id="dn">Fertig</button><button id="backtowrite">Zurück zum Text &amp; neu umwandeln</button></div>
 <div id="msg" role="status"></div>
 <b id="wt"></b>
-<div class="writing-scroll" id="writing-scroll"><div class="cv" id="cv"><canvas id="gd"></canvas><canvas id="ink"></canvas></div></div>
+<div class="writing-scroll" id="writing-scroll"><div class="cv" id="cv"><canvas id="gd"></canvas><canvas id="ink"></canvas></div><div class="cellbar" id="cellbar"></div></div>
 <div class="palm-rest" aria-label="Freie Handballen-Ablage"></div>
 </div>
 </section>

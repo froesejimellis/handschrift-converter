@@ -3,7 +3,7 @@ const K=Math.min(3,Math.max(2,Math.ceil(window.devicePixelRatio||1))),Q=2; // K:
 const CHARS=`abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZäöüÄÖÜß0123456789.,!?:;-()"'`;
 const CAND=`Hallo Wasser Schule Zeitung Frühling Sommer Herbst Winter Straße Brücke Küche Mädchen Öffnung Übung Ärger Österreich Ägypten Übermut Fußball Gruß Maß Spaß Quelle Quark Qualität Xylophon Yacht Zebra Jacke Fuchs Vogel Katze Hund Pferd Bäcker Löwe Zähne Möbel Käse Wörter Tüte Größe Füße Süßigkeit Blume Garten Zimmer Tisch Stuhl Fenster Lampe Buch Heft Stift Papier Computer Telefon Wetter Regen Schnee Sonne Wolke Himmel Berlin Hamburg München Köln Frankfurt Stuttgart Dresden Leipzig Nürnberg Bremen Düsseldorf Jahr Monat Woche Montag Dienstag Mittwoch Donnerstag Freitag Samstag Sonntag Januar Februar März April Mai Juni Juli August September Oktober November Dezember Freund Familie Mutter Vater Bruder Schwester Kinder Liebe Glück Zukunft Vergangenheit Wirklichkeit Jugend Erfahrung Wissenschaft Experiment Physik Chemie Zitrone Orange Banane Kartoffel Tomate Gurke Zwiebel Pilze Brot Butter Marmelade Kaffee Milch Zucker Wunsch bequem Frequenz Aquarium Hexe Examen Taxi Text extra Mixer Typ Gymnasium Handy System Dank! Bitte, wie?  Name: gut; so-so (Test) "Ja" ist's 2024 10:30 3,50 0123456789 (987) 8.7.6. Hallo! Wirklich? Gesundheit, Prost! `;
 function makeWords(){const need={};for(const c of CHARS)need[c]=3;
-const cand=CAND.split(/\s+/).filter(w=>w&&[...w].every(c=>CHARS.includes(c)));const out=[];
+const cand=CAND.split(/\s+/).filter(w=>w&&[...w].length<=9&&[...w].every(c=>CHARS.includes(c)));const out=[];
 for(;;){let b=null,bs=0;for(const w of cand){if(out.includes(w))continue;const t={};let sc=0;for(const c of w){t[c]=(t[c]||0)+1;if(t[c]<=need[c])sc++}if(sc>bs){bs=sc;b=w}}
 if(!b)break;out.push(b);for(const c of b)need[c]--}
 let rest='';for(const c of CHARS)for(let k=0;k<need[c];k++)rest+=c;
@@ -46,6 +46,13 @@ function setupRangeNumbers(){
  });
 }
 setupRangeNumbers();
+// Einstellungen der Schreiben-Seite werden pro Gerät gemerkt.
+const SET_IDS=['txt','fsel','bsel','size','lh','ws','rnd','col','mt','ml','mr','mb','boff','exportformat'];
+let want={},setTm;
+try{want=JSON.parse(localStorage.getItem('hc-settings')||'{}')||{}}catch(e){}
+for(const id of SET_IDS){const el=$('#'+id);if(!el||el.tagName==='SELECT'||want[id]===undefined)continue;el.value=want[id];if(el.type==='range')el.dispatchEvent(new Event('input'))}
+function saveSettings(){clearTimeout(setTm);setTm=setTimeout(()=>{for(const id of SET_IDS){const el=$('#'+id);if(el&&!(el.tagName==='SELECT'&&!el.value))want[id]=el.value}try{localStorage.setItem('hc-settings',JSON.stringify(want))}catch(e){}},300)}
+for(const id of SET_IDS){const el=$('#'+id);if(el){el.addEventListener('input',saveSettings);el.addEventListener('change',saveSettings)}}
 // Stabilisierung wird pro Gerät gespeichert, ohne die Handschrift-Daten zu verändern.
 try{const settings=JSON.parse(localStorage.getItem('hc-stabilizer')||'{}');
  if(typeof settings.enabled==='boolean')$('#stabilize').checked=settings.enabled;
@@ -61,12 +68,11 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.que
 const switchTab=t=>document.querySelector(`.tabs button[data-t="${t}"]`)?.click();
 const done=f=>Object.values(f.slots).reduce((a,s)=>a+s.filter(Boolean).length,0),total=f=>f.words.reduce((a,w)=>a+[...w].length,0);
 function lists(){
-const fs=$('#fsel'),bs=$('#bsel'),pf=fs.value,pb=bs.value;
+const fs=$('#fsel'),bs=$('#bsel'),pf=fs.value,pb=bs.value,hasOpt=(sel,v)=>!!v&&[...sel.options].some(o=>o.value===v);
 fs.innerHTML=[...BI,...S.fonts].map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('')||'<option value="">– keine –</option>';
 bs.innerHTML=[['dotted','Gepunktet'],['plain','Weiß'],['lined','Liniert'],['grid','Kariert'],...S.bgs.map(b=>[b.id,b.name])].map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('');
-if(pf)fs.value=pf;
-if(pb && [...bs.options].some(o=>o.value===pb))bs.value=pb;
-else bs.value='dotted';
+if(hasOpt(fs,want.fsel))fs.value=want.fsel;else if(hasOpt(fs,pf))fs.value=pf;
+if(hasOpt(bs,want.bsel))bs.value=want.bsel;else if(hasOpt(bs,pb))bs.value=pb;else bs.value='dotted';
 $('#flist').innerHTML=S.fonts.map(f=>`<div class="row"><b>${esc(f.name)}</b><small>${done(f)} von ${total(f)} Zeichen geschrieben</small><button data-a="edit" data-id="${f.id}">Weiterschreiben</button><button data-a="rename" data-id="${f.id}">Umbenennen</button><button data-a="del" data-id="${f.id}">Löschen</button></div>`).join('')||'<small>Noch keine Handschrift angelegt.</small>';
 $('#blist').innerHTML=S.bgs.map(b=>`<div><img class="th" src="${b.d}"><br><small>${esc(b.name)}</small><br><button data-ba="rename" data-bid="${b.id}">Umbenennen</button><button data-ba="del" data-bid="${b.id}">Löschen</button></div>`).join('')}
 $('#flist').onclick=e=>{const b=e.target.closest('button');if(!b)return;
@@ -79,7 +85,7 @@ if(!name.trim()){alert('Bitte einen Namen eingeben.');return}
 f.name=name.trim();save();lists();
 }
 else if(b.dataset.arm){S.fonts=S.fonts.filter(f=>f.id!=b.dataset.id);if(ed&&ed.f.id==b.dataset.id){ed=null;$('#ed').classList.add('hide')}save();lists()}
-else{b.dataset.arm=1;b.textContent='Wirklich löschen?'}};
+else{b.dataset.arm=1;b.textContent='Wirklich löschen?';setTimeout(()=>{delete b.dataset.arm;b.textContent='Löschen'},4000)}};
 $('#blist').onclick=e=>{const b=e.target.closest('button');if(!b)return;
 const bg=S.bgs.find(x=>x.id==b.dataset.bid);if(!bg)return;
 if(b.dataset.ba=='rename'){
@@ -124,19 +130,48 @@ function beginMissing(){const f=S.fonts.find(x=>x.id==$('#fsel').value);if(!f)re
  $('#msg').textContent='';
 }
 $('#addmissing').onclick=beginMissing;
-$('#backtowrite').onclick=()=>{if(ed){const r=grab();if(ed.st.length){ed.f.slots[ed.i]=r.arr;save();}}ed=null;$('#ed').classList.add('hide');missingSession=null;lists();switchTab('write');render()};
-function guides(){const{f,i}=ed,w=[...f.words[i]],g=gd.getContext('2d');g.setTransform(K,0,0,K,0,0);g.clearRect(0,0,gd.width,gd.height);g.strokeStyle='#8886';g.fillStyle='#888';g.font='14px sans-serif';g.setLineDash([]);
-w.forEach((c,k)=>{g.strokeRect(k*CW+.5,.5,CW-1,CH-1);g.beginPath();g.moveTo(k*CW,BASE);g.lineTo(k*CW+CW,BASE);g.stroke();g.fillText(c,k*CW+6,18)});
-g.setLineDash([3,4]);g.beginPath();for(let k=0;k<w.length;k++){g.moveTo(k*CW,BASE-TX);g.lineTo(k*CW+CW,BASE-TX)}g.stroke();g.setLineDash([])}
+$('#backtowrite').onclick=()=>{commit();ed=null;$('#ed').classList.add('hide');missingSession=null;lists();switchTab('write');render()};
+function guides(){const{f,i}=ed,w=[...f.words[i]],g=gd.getContext('2d'),sc=ed.sc||1,lw=1/sc,fs=Math.round(Math.min(34,Math.max(14,13/sc)));
+g.setTransform(K,0,0,K,0,0);g.clearRect(0,0,gd.width,gd.height);g.strokeStyle='#8886';g.fillStyle='#888';g.font=fs+'px sans-serif';g.setLineDash([]);g.lineWidth=lw;
+w.forEach((c,k)=>{g.strokeRect(k*CW+lw/2,lw/2,CW-lw,CH-lw);g.beginPath();g.moveTo(k*CW,BASE);g.lineTo(k*CW+CW,BASE);g.stroke();g.fillText(c,k*CW+6,fs+2)});
+g.setLineDash([3/sc,4/sc]);g.beginPath();for(let k=0;k<w.length;k++){g.moveTo(k*CW,BASE-TX);g.lineTo(k*CW+CW,BASE-TX)}g.stroke();g.setLineDash([])}
+// Bereits gespeicherte Zeichen blass als Vorschau anzeigen (nur Anzeige, nicht Teil der neuen Eingabe).
+let dsTok=0;
+async function drawSaved(){if(!ed)return;const tok=++dsTok,{f,i}=ed,s=f.slots[i];if(!s)return;const imgs=[];
+ for(const q of s){if(!q){imgs.push(null);continue}IC[q.d]=IC[q.d]||await loadImg(q.d);imgs.push(IC[q.d])}
+ if(tok!==dsTok||!ed||ed.f!==f||ed.i!==i)return;const g=gd.getContext('2d');g.save();g.setTransform(K,0,0,K,0,0);g.globalAlpha=.28;
+ imgs.forEach((im,j)=>{const q=s[j];if(im&&q)g.drawImage(im,j*CW+(CW-q.w)/2,BASE+q.dy+(q.pb??2)-q.h,q.w,q.h)});g.restore()}
 function mark(st){guides();const g=gd.getContext('2d');g.setTransform(1,0,0,1,0,0);g.strokeStyle='#e11';g.lineWidth=2*K;for(const s of st)for(const b of s.b)g.strokeRect(s.i*CW*K+b[0]-5,b[1]-5,b[2]-b[0]+10,b[3]-b[1]+10)}
+// Die Schreibfläche wird so skaliert, dass das längste Wort der Handschrift ohne Scrollen auf die Breite passt.
+function layout(){if(!ed)return;const n=[...ed.f.words[ed.i]].length,avail=$('#writing-scroll').clientWidth||320,mx=Math.max(1,...ed.f.words.map(x=>[...x].length)),sc=Math.min(1,avail/(mx*CW));ed.sc=sc;ed.avail=avail;
+ const cv=$('#cv'),bar=$('#cellbar');cv.style.width=n*CW*sc+'px';cv.style.height=CH*sc+'px';bar.style.width=n*CW*sc+'px';bar.querySelectorAll('button').forEach(b=>b.style.width=CW*sc+'px')}
+function relayout(){if(!ed||$('#ed').classList.contains('hide'))return;const w=$('#writing-scroll').clientWidth;if(w===ed.avail)return;layout();guides();drawSaved()}
+window.addEventListener('resize',relayout);if(window.ResizeObserver)new ResizeObserver(relayout).observe($('#writing-scroll'));
+function head(){const{f,i}=ed,ch=f.words[i],special=isSpecial(ch)&&[...ch].length===1;const variant=special?f.words.slice(0,i+1).filter(w=>w===ch).length:0;
+$('#wt').textContent=`${special?'Sonderzeichen '+ch+' – Variante '+variant+' von '+Math.max(3,f.words.filter(w=>w===ch).length):'Wort '+(i+1)+' von '+f.words.length+': '+ch}${f.slots[i]?'  (✓ gespeichert – nur neu geschriebene Zeichen ersetzen die alten)':''}`;
+$('#wj').innerHTML=f.words.map((x,k)=>`<option value="${k}">${f.slots[k]?'✓ ':''}${k+1}. ${esc(x)}</option>`).join('');$('#wj').value=i}
 function show(){const{f,i}=ed,n=[...f.words[i]].length;ed.st=[];
 ink.width=gd.width=n*CW*K;ink.height=gd.height=CH*K;
-const cv=$('#cv');cv.style.width=n*CW+'px';cv.style.height=CH+'px';$('#writing-scroll').scrollLeft=0;guides();
-const ch=f.words[i],special=isSpecial(ch)&&[...ch].length===1;const variant=special?f.words.slice(0,i+1).filter(w=>w===ch).length:0;
-$('#wt').textContent=`${special?'Sonderzeichen '+ch+' – Variante '+variant+' von '+Math.max(3,f.words.filter(w=>w===ch).length):'Wort '+(i+1)+' von '+f.words.length+': '+ch}${f.slots[i]?'  (✓ gespeichert – neu schreiben überschreibt)':''}`;
-$('#wj').innerHTML=f.words.map((x,k)=>`<option value="${k}">${f.slots[k]?'✓ ':''}${k+1}. ${esc(x)}</option>`).join('');$('#wj').value=i;cover()}
+$('#cellbar').innerHTML=[...f.words[i]].map((c,j)=>`<button type="button" data-j="${j}" title="Zeichen „${esc(c)}“ löschen" aria-label="Zeichen ${esc(c)} löschen">✕</button>`).join('');
+layout();$('#writing-scroll').scrollLeft=0;guides();drawSaved();head();cover()}
+// Einzelnes Zeichen im aktuellen Wort löschen (gespeichert und frisch geschrieben), ohne das Wort neu zu schreiben.
+const cellOf=(st,n)=>{const xs=st.points.map(p=>p[0]);return Math.min(n-1,Math.max(0,Math.floor((Math.min(...xs)+Math.max(...xs))/2/(CW*K))))};
+function clearCell(j){if(!ed)return;const f=ed.f,i=ed.i,n=[...f.words[i]].length,s=f.slots[i];let had=false;
+ ed.st=ed.st.filter(st=>{if(cellOf(st,n)===j){had=true;return false}return true});
+ if(s&&s[j]){s[j]=null;had=true;if(!s.some(Boolean))delete f.slots[i];save();lists()}
+ redraw();guides();drawSaved();head();cover();$('#msg').textContent=had?'Zeichen „'+[...f.words[i]][j]+'“ gelöscht.':'Hier ist nichts zu löschen.'}
+$('#cellbar').onclick=e=>{const b=e.target.closest('button');if(b)clearCell(+b.dataset.j)};
+// Alle Schreibproben eines Zeichens löschen; hinzugefügte Sonderzeichen werden ganz aus der Handschrift entfernt.
+function removeChar(ch){commit();const f=ed.f,keep=[],slots={};let ni=null;
+ f.words.forEach((w,k)=>{const cs=[...w],sl=f.slots[k]?f.slots[k].slice():null;if(sl)cs.forEach((c,j)=>{if(c===ch)sl[j]=null});
+  if(k===ed.i)ni=keep.length;
+  if(cs.length===1&&cs[0]===ch&&!CHARS.includes(ch))return;
+  const idx=keep.length;keep.push(w);if(sl&&sl.some(Boolean))slots[idx]=sl});
+ f.words=keep;f.slots=slots;ed.i=Math.max(0,Math.min(keep.length-1,ni??0));save();lists();show()}
 function counts(f){const c={};f.words.forEach((w,k)=>{const s=f.slots[k];[...w].forEach((ch,j)=>{if(s&&s[j])c[ch]=(c[ch]||0)+1})});return c}
-function cover(){const c=counts(ed.f);$('#cov').innerHTML=[...new Set([...CHARS,...Object.keys(c)])].map(ch=>`<span class="chip ${(c[ch]||0)>=3?'ok':''}">${esc(ch)} ${c[ch]||0}</span>`).join('')}
+function cover(){const c=counts(ed.f);$('#cov').innerHTML=[...new Set([...CHARS,...ed.f.words.flatMap(w=>[...w])])].map(ch=>`<span class="chip ${(c[ch]||0)>=3?'ok':''}" data-ch="${esc(ch)}" title="Antippen: Zeichen löschen">${esc(ch)} ${c[ch]||0}</span>`).join('')}
+$('#cov').onclick=e=>{const c=e.target.closest('.chip');if(!c||!ed)return;const ch=c.dataset.ch,n=counts(ed.f)[ch]||0,extra=!CHARS.includes(ch);if(!n&&!extra)return;
+ if(!confirm(n?`Alle ${n} gespeicherten Schreibproben von „${ch}“ löschen?`+(extra?' Das Zeichen wird aus dieser Handschrift entfernt.':''):`Zeichen „${ch}“ aus dieser Handschrift entfernen?`))return;removeChar(ch)};
 const pt=e=>{const r=ink.getBoundingClientRect();return[(e.clientX-r.left)*ink.width/r.width,(e.clientY-r.top)*ink.height/r.height]};
 // Glättung als adaptiver Tiefpass: geringere Verzögerung bei schnellen Bewegungen.
 // Rohpunkte bleiben erhalten; geglättet wird nur der gezeichnete Strich.
@@ -157,8 +192,8 @@ function smoothStroke(points,strength){
   result[idx][0]+=dx*t*t;result[idx][1]+=dy*t*t;}
  return result;
 }
-let activePointer=null;
-ink.onpointerdown=e=>{if(!ed||activePointer!==null)return;e.preventDefault();activePointer=e.pointerId;ink.setPointerCapture(e.pointerId);cur=[pt(e)];ed.st.push({points:cur,stability:$('#stabilize').checked?+$('#stability').value:0});redraw()};
+let activePointer=null,penSeen=false;
+ink.onpointerdown=e=>{if(e.pointerType==='pen')penSeen=true;if(!ed||activePointer!==null||(penSeen&&e.pointerType==='touch'))return;e.preventDefault();activePointer=e.pointerId;ink.setPointerCapture(e.pointerId);cur=[pt(e)];ed.st.push({points:cur,stability:$('#stabilize').checked?+$('#stability').value:0});redraw()};
 ink.onpointermove=e=>{if(!cur||e.pointerId!==activePointer)return;e.preventDefault();
  (e.getCoalescedEvents?e.getCoalescedEvents():[e]).forEach(v=>cur.push(pt(v)));redraw()};
 function finishStroke(e){if(e.pointerId!==activePointer)return;cur=null;activePointer=null;redraw()}
@@ -190,7 +225,8 @@ function detectBaselineOffset(data,W,H,components,ch,kk){
  if('.,'.includes(ch))return ch===','?Math.min(11,height*.55):0;
  if(ch===';'||ch===':')return ch===';'?Math.min(10,height*.3):0;
  if(ch==='_' )return Math.min(10,height*.4);
- if(ch==='-'||ch==='–'||ch==='—'||ch==='=')return -Math.max(10,Math.min(24,height));
+ if('-–—=+~<>×÷'.includes(ch))return Math.max(-TX-8,Math.min(8,bottom-BASE));
+ if('*^°'.includes(ch))return Math.max(-BASE+10,Math.min(-TX*.5,bottom-BASE));
  if(ch==="'"||ch==='’'||ch==='`'||ch==='"'||ch==='“'||ch==='”'||ch==='^'||ch==='°')return -Math.max(30,Math.min(55,BASE*.35));
  // Unterlängen: Erkenne den Übergang vom Buchstabenkörper zum Abstrich anhand
  // der Breite der Tinte je Zeile. Bei schmalen Abstrichen ist die Grundlinie
@@ -219,7 +255,7 @@ function process(cv,ch,kk,rm,norm){
 const W=cv.width,H=cv.height,g=cv.getContext('2d'),im=g.getImageData(0,0,W,H),d=im.data,cs=comps(d,W,H);
 if(!cs.length)return{g:null,strays:[]};
 cs.sort((a,b)=>b.px.length-a.px.length);
-const lim=12*kk,ex=cs.slice(1).filter(c=>Math.max(c.x1-c.x0,c.y1-c.y0)+1<=lim),al=DOT[ch]||0,strays=ex.slice(al);
+const lim=12*kk,ex=cs.slice(1).filter(c=>Math.max(c.x1-c.x0,c.y1-c.y0)+1<=lim),al=DOT[ch]??(isSpecial(ch)&&!'.,'.includes(ch)?3:0),strays=ex.slice(al);
 let keep=cs;
 if(rm&&strays.length){for(const c of strays)for(const p of c.px)d[p*4+3]=0;g.putImageData(im,0,0);keep=cs.filter(c=>!strays.includes(c))}
 const dots=DL.includes(ch)?ex.slice(0,al):[],body=keep.filter(c=>!dots.includes(c));
@@ -231,18 +267,18 @@ const x0=Math.max(0,F[0]-pad),y0=Math.max(0,F[1]-pad),x1=Math.min(W-1,F[2]+pad),
 const dy=detectBaselineOffset(d,W,H,keep,ch,kk);
 const o=document.createElement('canvas');o.width=w;o.height=h;
 o.getContext('2d').drawImage(cv,x0,y0,w,h,0,0,w,h);
-return{g:{d:o.toDataURL(),w:w/kk,h:h/kk,dy},strays}}
+return{g:{d:o.toDataURL(),w:w/kk,h:h/kk,dy,pb:(y1-F[3])/kk},strays}}
 function grab(){const rm=true,nm=true,arr=[],st=[];
 [...ed.f.words[ed.i]].forEach((ch,i)=>{const t=document.createElement('canvas');t.width=CW*K;t.height=CH*K;t.getContext('2d').drawImage(ink,i*CW*K,0,CW*K,CH*K,0,0,CW*K,CH*K);
 const r=process(t,ch,K,rm,nm);arr.push(r.g);if(r.strays.length)st.push({i,ch,n:r.strays.length,b:r.strays.map(c=>[c.x0,c.y0,c.x1,c.y1])})});
 return{arr,st}}
-function go(k){if(!ed)return;let n=0;
-if(ed.st.length){const r=grab();
-ed.f.slots[ed.i]=r.arr;n=r.st.reduce((a,s)=>a+s.n,0);save();lists()}
+function commit(){if(!ed||!ed.st.length)return 0;const r=grab(),old=ed.f.slots[ed.i]||[];
+ed.f.slots[ed.i]=r.arr.map((g,j)=>g||old[j]||null);save();lists();return r.st.reduce((a,s)=>a+s.n,0)}
+function go(k){if(!ed)return;let n=commit();
 if(missingSession?.id===ed.f.id&&k>ed.i){const idx=nextMissingTask(ed.f,missingSession.chars);if(idx>=0)k=idx}
 ed.i=Math.max(0,Math.min(ed.f.words.length-1,k));show();$('#msg').textContent=n?n+' fremde(r) Punkt(e) automatisch entfernt.':''}
 $('#nx').onclick=()=>go(ed.i+1);$('#pv').onclick=()=>go(ed.i-1);$('#wj').onchange=e=>go(+e.target.value);
-$('#dn').onclick=()=>{if(!ed)return;if(ed.st.length){const r=grab();ed.f.slots[ed.i]=r.arr;save()}ed=null;$('#ed').classList.add('hide');lists();if(missingSession){missingSession=null;switchTab('write');render()}};
+$('#dn').onclick=()=>{if(!ed)return;commit();ed=null;$('#ed').classList.add('hide');lists();if(missingSession){missingSession=null;switchTab('write');render()}};
 
 /* Erfasste Tintenpixel pro Ausgabeseite, getrennt vom Papier.
    Die Bildabtastung erzeugt radierbare kurze Stiftobjekte statt einer Textur. */
@@ -326,23 +362,15 @@ function gnThumbnail(page){const c=document.createElement('canvas');c.width=320;
 /* Rendern */
 const IC={};
 async function variants(f){const V={};for(const[k,w]of f.words.entries()){const s=f.slots[k];if(!s)continue;for(const[j,ch]of[...w].entries()){const g=s[j];if(!g)continue;IC[g.d]=IC[g.d]||await loadImg(g.d);if(IC[g.d])(V[ch]=V[ch]||[]).push({...g,img:IC[g.d]})}}return V}
-function paper(c,type,H,lh,m,bg){const g=c.getContext('2d');g.scale(Q,Q);g.fillStyle='#fdfcf8';g.fillRect(0,0,PW,H);if(bg){g.drawImage(bg,0,0,PW,H);return}
-g.strokeStyle='#a9c1da';g.fillStyle='#c3c8d2';g.lineWidth=1.5;g.beginPath();
-if(type=='lined')for(let y=m.t+lh+6;y<H-m.b+10;y+=lh){g.moveTo(m.l-20,y);g.lineTo(PW-m.r+20,y)}
-if(type=='grid'){const st=lh/2;for(let y=m.t;y<H;y+=st){g.moveTo(0,y);g.lineTo(PW,y)}for(let x=0;x<PW;x+=st){g.moveTo(x,0);g.lineTo(x,H)}}
-g.stroke();
+function paper(c,type,H,lh,m,bg){const g=c.getContext('2d');g.scale(Q,Q);g.fillStyle='#ffffff';g.fillRect(0,0,PW,H);if(bg){g.drawImage(bg,0,0,PW,H);return}
+// Schreibgrundlinien liegen bei m.t + n*lh (n=1,2,...). Linien und Punktreihen liegen genau darauf.
+if(type=='lined'){g.strokeStyle='#a9c1da';g.lineWidth=1.5;g.beginPath();for(let y=m.t+lh;y<=H-m.b+1;y+=lh){g.moveTo(m.l-20,y+.75);g.lineTo(PW-m.r+20,y+.75)}g.stroke()}
+if(type=='grid'){g.strokeStyle='#a9c1da';g.lineWidth=1.5;g.beginPath();const st=lh/2;for(let y=m.t;y<H;y+=st){g.moveTo(0,y);g.lineTo(PW,y)}for(let x=0;x<PW;x+=st){g.moveTo(x,0);g.lineTo(x,H)}g.stroke()}
 if(type=='dotted'){
- // Jede Schreibgrundlinie liegt exakt zwischen zwei Punktreihen.
- // Vertikale Punktreihen folgen dem wirklichen Zeilenabstand (lh),
- // nicht einem unabhängig gerundeten Raster.
- const stX=Math.max(18,lh/2),stY=lh,r=Math.max(1.1,Math.min(1.8,stX/26));
- for(let row=0, y=m.t+stY/2;y<=H-m.b;row++,y=m.t+stY/2+row*stY){
-  for(let x=m.l;x<=PW-m.r;x+=stX){
-   g.beginPath();
-   g.arc(x,y,r,0,Math.PI*2);
-   g.fill();
-  }
- }
+ // Quadratisches Punktraster: Abstand waagerecht = senkrecht = Zeilenhöhe.
+ // Wächst die Zeilenhöhe, wachsen auch die Spalten. Jede Schreibzeile steht auf einer Punktreihe.
+ const st=lh,r=Math.max(1.2,Math.min(2,st/24));g.fillStyle='#aeb2b8';
+ for(let y=m.t;y<=H-m.b+1;y+=st)for(let x=m.l;x<=PW-m.r+1;x+=st){g.beginPath();g.arc(x,y,r,0,Math.PI*2);g.fill()}
 }}
 function showMissing(f,chars){
  const panel=$('#missingpanel'),list=$('#missingchars');
@@ -363,10 +391,12 @@ const bsel=$('#bsel').value,bgd=S.bgs.find(b=>b.id==bsel),bgImg=bgd?await loadIm
 const PH=bgImg?Math.round(PW*bgImg.height/bgImg.width):1754;
 const s=+$('#size').value/100,lh=CH*s*$('#lh').value/100,R=+$('#rnd').value/100,wsb=+$('#ws').value/100;
 const m={t:+$('#mt').value,l:+$('#ml').value,r:+$('#mr').value,b:+$('#mb').value},RM=PW-m.r;
+const BO=+$('#boff').value||0,ruled=!bgd&&['dotted','lined','grid'].includes(bsel);
 const pages=[],last={},miss=new Set();let ctx,y,x,x0,sl,by;
-const line=()=>{sl=rnd(-1,1)*.006*R;x0=m.l+rnd(0,12)*R;x=x0;by=rnd(-2,2)*R};
+// Auf Linien- und Punktpapier bleibt die Schrift exakt auf der Zeile (kein Neigen/Wandern der Zeile).
+const line=()=>{sl=ruled?0:rnd(-1,1)*.006*R;x0=m.l+rnd(0,12)*R;x=x0;by=ruled?0:rnd(-2,2)*R};
 const newPage=()=>{const c=document.createElement('canvas');c.width=PW*Q;c.height=PH*Q;pages.push(c);ctx=c.getContext('2d');ctx.scale(Q,Q);ctx.imageSmoothingQuality='high';y=m.t+lh;line()};
-const nl=()=>{y+=lh*(bsel==='dotted'?1:1+rnd(-.04,.04)*R);if(y>PH-m.b)newPage();else line()};
+const nl=()=>{y+=ruled?lh:lh*(1+rnd(-.04,.04)*R);if(y>PH-m.b)newPage();else line()};
 const pick=ch=>{const a=V[ch]||V[ch.toLowerCase()]||V[ch.toUpperCase()];if(!a){miss.add(ch);return null}let i=0;if(a.length>1){do i=Math.random()*a.length|0;while(i===last[ch])}last[ch]=i;return a[i]};
 newPage();
 for(const para of $('#txt').value.split('\n')){
@@ -380,7 +410,7 @@ for(const o of items){if(o.g){
 const w=o.g.w*s,h=o.g.h*s,a=rnd(-3,3)*R*Math.PI/180;
 // Vertikale Verschiebung legt die erkannte Grundlinie bei Unregelmäßigkeit 0
 // exakt auf y. dy korrigiert Unterlängen, ohne die Zeichenhöhe zu verändern.
-const gy=y+by+sl*(x-m.l)+o.g.dy*s-h+rnd(-3,3)*R*s;
+const vj=ruled?1:3,gy=y+by+sl*(x-m.l)+(o.g.dy+(o.g.pb??2))*s-h+BO+rnd(-vj,vj)*R*s;
 ctx.save();
 if(R){ctx.translate(x+w/2,gy+h/2);ctx.rotate(a);ctx.drawImage(o.g.img,-w/2,-h/2,w,h)}
 else ctx.drawImage(o.g.img,x,gy,w,h);
@@ -414,7 +444,7 @@ const d=g.getImageData(0,0,W,H).data;let x0=W,y0=H,x1=-1,y1=-1;
 for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(d[(y*W+x)*4+3]>20){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
 if(x1<0)return null;x0=Math.max(0,x0-2);y0=Math.max(0,y0-2);x1=Math.min(W-1,x1+2);y1=Math.min(H-1,y1+2);
 const w=x1-x0+1,h=y1-y0+1,o=document.createElement('canvas');o.width=w;o.height=h;o.getContext('2d').drawImage(c,x0,y0,w,h,0,0,w,h);
-return{d:o.toDataURL(),w,h,dy:y0+h-B}}
+return{d:o.toDataURL(),w,h,dy:y0+h-B,pb:0}}
 const ready=(async()=>{
 try{await Promise.race([Promise.all(FONTS.map(f=>document.fonts.load(`${f[3]}px "${f[2]}"`,CHARS))),new Promise(r=>setTimeout(r,5000))])}catch(e){}
 for(const[id,name,fam,px,j]of FONTS){const words=[],slots={};for(let v=0;v<5;v++){words.push(CHARS);slots[v]=[...CHARS].map(ch=>mkGlyph(ch,fam,px,j))}BI.push({id,name,builtin:1,words,slots})}
