@@ -364,6 +364,8 @@ function gnThumbnail(page){const c=document.createElement('canvas');c.width=320;
 const MSYM={cdot:'·',times:'×',div:'÷',pm:'±',mp:'∓',neq:'≠',ne:'≠',leq:'≤',le:'≤',geq:'≥',ge:'≥',approx:'≈',infty:'∞',pi:'π',alpha:'α',beta:'β',gamma:'γ',delta:'δ',Delta:'Δ',theta:'θ',lambda:'λ',mu:'μ',sigma:'σ',omega:'ω',Omega:'Ω',phi:'φ',sum:'∑',prod:'∏',int:'∫',to:'→',rightarrow:'→',leftarrow:'←',Rightarrow:'⇒',Leftrightarrow:'⇔',degree:'°',ldots:'…',cdots:'…'};
 const SUPD={'⁰':'0','¹':'1','²':'2','³':'3','⁴':'4','⁵':'5','⁶':'6','⁷':'7','⁸':'8','⁹':'9'},VULG={'½':[1,2],'¼':[1,4],'¾':[3,4],'⅓':[1,3],'⅔':[2,3]};
 const chs=t=>[...t].map(c=>({t:'ch',c}));
+const mk=c=>c==='·'||c==='•'?{t:'ch',c:'.',mid:1}:c==='−'?{t:'ch',c:'-'}:{t:'ch',c};
+const CEN='-–—=+×÷±≈<>≤≥≠';
 function mparse(src,auto){let i=0;const isAl=c=>/[\p{L}\p{N}]/u.test(c||'');
  const closeAt=o=>{let d=0;for(let j=o;j<src.length;j++){if(src[j]==='(')d++;else if(src[j]===')'&&--d===0)return j}return -1};
  function seq(stop){const o=[];while(i<src.length&&src[i]!==stop)o.push(atom());return o}
@@ -377,14 +379,14 @@ function mparse(src,auto){let i=0;const isAl=c=>/[\p{L}\p{N}]/u.test(c||'');
    if(name==='text'||name==='mathrm')return{t:'grp',n:arg()};
    if(name==='left'||name==='right')return{t:'nop'};
    if(/^(quad|qquad|space|[,;:! ])$/.test(name))return{t:'gap'};
-   if(MSYM[name])return{t:'ch',c:MSYM[name]};
+   if(MSYM[name])return mk(MSYM[name]);
    return name.length===1?{t:'ch',c:name}:{t:'grp',n:chs(name)}}
   if(c==='{'){i++;const n=seq('}');if(src[i]==='}')i++;return{t:'grp',n}}
   if(c==='√'){i++;if(src[i]==='('){const e=closeAt(i);if(e>0){const n=mparse(src.slice(i+1,e),auto);i=e+1;return{t:'sqrt',b:n,idx:null}}}
    const m=/^\d+(?:[.,]\d+)?|^\p{L}/u.exec(src.slice(i));if(m){i+=m[0].length;return{t:'sqrt',b:chs(m[0]),idx:null}}return{t:'ch',c:'√'}}
   if(VULG[c]){i++;return{t:'frac',n:chs(''+VULG[c][0]),d:chs(''+VULG[c][1])}}
   if(auto&&/\d/.test(c)&&!/[\p{L}\p{N}.,\/]/u.test(src[i-1]||'')){const m=/^(\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)(?![\p{L}\p{N}\/])/u.exec(src.slice(i));if(m){i+=m[0].length;return{t:'frac',n:chs(m[1]),d:chs(m[2])}}}
-  const cp=String.fromCodePoint(src.codePointAt(i));i+=cp.length;return{t:'ch',c:cp}}
+  const cp=String.fromCodePoint(src.codePointAt(i));i+=cp.length;return mk(cp)}
  function atom(){const n=base();if(n.t==='sp')return n;
   for(;;){const c=src[i],nx=src[i+1];
    if((c==='^'&&nx!==undefined&&(isAl(nx)||'{-+\\'.includes(nx)))||(c==='_'&&nx!==undefined&&(isAl(nx)||'{\\'.includes(nx)))){i++;const a=arg();if(c==='^')n.sup=(n.sup||[]).concat(a);else n.sub=(n.sub||[]).concat(a);continue}
@@ -435,8 +437,17 @@ const newPage=()=>{const c=document.createElement('canvas');c.width=PW*Q;c.heigh
 const pick=ch=>{const a=V[ch]||V[ch.toLowerCase()]||V[ch.toUpperCase()];if(!a){miss.add(ch);return null}let i=0;if(a.length>1){do i=Math.random()*a.length|0;while(i===last[ch])}last[ch]=i;return a[i]};
 // Boxen: Maße relativ zur Grundlinie (y positiv = nach unten). Zeichen behalten immer ihre Größe (nur Unter-/Hochzahlen sind kleiner).
 const vjb=(ruled?.07:.12)*lh;
+// Strichbreite der eigenen Handschrift schätzen (Fläche / halber Umfang), damit Bruchstrich und Wurzel gleich dick wirken.
+const PEN=(()=>{const ws=[];for(const ch of 'lIitHT1'){const a=V[ch];if(!a)continue;const g=a[0],W=g.img.naturalWidth,H=g.img.naturalHeight;if(!W||!H)continue;const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(g.img,0,0);const d=x.getImageData(0,0,W,H).data,on=(xx,yy)=>xx>=0&&yy>=0&&xx<W&&yy<H&&d[(yy*W+xx)*4+3]>=128;let A=0,P=0;
+ for(let yy=0;yy<H;yy++)for(let xx=0;xx<W;xx++){if(!on(xx,yy))continue;A++;if(!on(xx-1,yy)||!on(xx+1,yy)||!on(xx,yy-1)||!on(xx,yy+1))P++}if(P)ws.push(2*A/P*g.w/W)}
+ ws.sort((a,b)=>a-b);return ws.length?ws[ws.length>>1]:5})();
+// Handgezeichneter Strich: Zwischenpunkte mit leichter Biegung, Zittern und wechselnder Strichstärke.
+const hand=(pts,lw,S)=>{const out=[],ws=[],ph=rnd(0,6);
+ for(let k=0;k<pts.length-1;k++){const[x1,y1]=pts[k],[x2,y2]=pts[k+1],dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len,n=Math.max(2,Math.round(len/(5*S))),bow=rnd(-1,1)*len*.022;
+  for(let j=k?1:0;j<=n;j++){const t=j/n,e=(j===0||j===n)?.3:1,o=bow*Math.sin(Math.PI*t)+rnd(-1,1)*(1.1+1.4*R)*S*e;out.push([x1+dx*t+nx*o,y1+dy*t+ny*o]);ws.push(lw*(.9+.2*Math.sin(ph+out.length*.8)))}}
+ return{k:'l',pts:out,ws,lw}};
 const mv=(b,dx,dy)=>b.items.map(p=>p.k==='g'?{...p,x:p.x+dx,y:p.y+dy}:{...p,pts:p.pts.map(q=>[q[0]+dx,q[1]+dy])});
-const mbox=(nodes,sc)=>{let x=0,asc=0,desc=0,math=false;const items=[],S=s*sc,lw=Math.max(1.3,5*s*Math.max(sc,.75));
+const mbox=(nodes,sc)=>{let x=0,asc=0,desc=0,math=false;const items=[],S=s*sc,lw=Math.max(1.2,PEN*s*Math.max(sc,.8));
  const put=(b,dx,dy)=>{items.push(...mv(b,dx,dy));asc=Math.max(asc,b.asc-dy);desc=Math.max(desc,b.desc+dy);if(b.math)math=true};
  for(const n of nodes){
   if(n.t==='sp'){x+=60*S*wsb;continue}
@@ -444,16 +455,19 @@ const mbox=(nodes,sc)=>{let x=0,asc=0,desc=0,math=false;const items=[],S=s*sc,lw
   if(n.t==='nop')continue;
   let nb,gp=0;
   if(n.t==='ch'){const g=pick(n.c);gp=(3+rnd(-10,16)*R)*S;
-   if(g){const pb=g.pb??2;nb={w:g.w*S,asc:Math.max(0,(g.h-g.dy-pb)*S),desc:Math.max(0,(g.dy+pb)*S),items:[{k:'g',g,x:0,y:0,S,a:rnd(-9,9)*R*Math.PI/180,v:rnd(-vjb,vjb)*sc*R}]}}
+   if(g){const pb=g.pb??2,hh=g.h*S,ax=.5*TX*S,mid=n.mid||CEN.includes(n.c),a=rnd(-9,9)*R*Math.PI/180,v=rnd(-vjb,vjb)*sc*R;
+    // Minus, Mal-Punkt und Rechenzeichen stehen mittig auf Höhe der Kleinbuchstaben, nicht auf der Grundlinie.
+    nb=mid?{w:g.w*S,asc:ax+hh/2,desc:Math.max(0,hh/2-ax),items:[{k:'g',g,x:0,y:-ax+hh/2-(g.dy+pb)*S,S,a,v}]}
+          :{w:g.w*S,asc:Math.max(0,(g.h-g.dy-pb)*S),desc:Math.max(0,(g.dy+pb)*S),items:[{k:'g',g,x:0,y:0,S,a,v}]}}
    else nb={w:20*S,asc:0,desc:0,items:[]}}
   else if(n.t==='grp')nb=mbox(n.n,sc);
-  else if(n.t==='frac'){const f=sc*.85,a=mbox(n.n,f),d=mbox(n.d,f),ax=.5*TX*S,gap=6*S,pad=4*S,w=Math.max(a.w,d.w)+2*pad,wob=()=>rnd(-1,1)*R*S*1.2;
-   nb={w,asc:ax+gap+a.desc+a.asc,desc:Math.max(0,d.asc+d.desc+gap-ax),math:true,items:[{k:'l',lw,pts:[[0,-ax+wob()],[w/2,-ax+wob()],[w,-ax+wob()]]}]};
+  else if(n.t==='frac'){const f=sc*.85,a=mbox(n.n,f),d=mbox(n.d,f),ax=.5*TX*S,gap=6*S,pad=4*S,w=Math.max(a.w,d.w)+2*pad,wob=0;
+   nb={w,asc:ax+gap+a.desc+a.asc,desc:Math.max(0,d.asc+d.desc+gap-ax),math:true,items:[hand([[rnd(0,1.5)*S,-ax+rnd(-1.8,1.8)*S*(1+R)],[w-rnd(0,1.5)*S,-ax+rnd(-1.8,1.8)*S*(1+R)]],lw,S)]};
    nb.items.push(...mv(a,(w-a.w)/2,-(ax+gap+a.desc)),...mv(d,(w-d.w)/2,-ax+gap+d.asc))}
   else if(n.t==='sqrt'){const b=mbox(n.b,sc),yt=-(b.asc+4*S),yb=b.desc+2*S,h=yb-yt,sw=Math.min(28*S,Math.max(10*S,.45*h));let ib=null,sx=0;
    if(n.idx){ib=mbox(n.idx,sc*.5);sx=Math.max(0,ib.w-.3*sw)}
    const E=sx+sw+b.w+5*S;
-   nb={w:E,asc:-yt,desc:yb,math:true,items:[{k:'l',lw,pts:[[sx,yt+.62*h],[sx+.1*sw,yt+.55*h],[sx+.32*sw,yb],[sx+sw,yt],[E,yt]]}]};
+   nb={w:E,asc:-yt,desc:yb,math:true,items:[hand([[sx,yt+.62*h],[sx+.1*sw,yt+.55*h],[sx+.32*sw,yb],[sx+sw+rnd(-.5,.5)*S,yt+rnd(-.5,.5)*S],[E+rnd(0,2)*S,yt+rnd(-1.5,.5)*S]],lw,S)]};
    nb.items.push(...mv(b,sx+sw+2*S,0));if(ib)nb.items.push(...mv(ib,0,yt+.5*h))}
   else continue;
   put(nb,x,0);let adv=nb.w;
@@ -471,7 +485,7 @@ newLine();
 const auto=$('#autofrac').checked;
 for(const para of $('#txt').value.split('\n')){
  const words=[[]];for(const n of mparse(para,auto)){if(n.t==='sp')words.push([]);else words[words.length-1].push(n)}
- for(const nodes of words){if(!nodes.length)continue;
+ for(const nodes of words){if(!nodes.length)continue;if(nodes.length===1&&nodes[0].t==='ch'&&nodes[0].c==='.')nodes[0].mid=1;
   const wy=rnd(-1,1)*(ruled?.05:.09)*lh*R,box=mbox(nodes,1);
   if(x+box.w>RM&&x>x0+1)fin();
   cl.words.push({box,x,wy});if(box.math){cl.math=true;cl.asc=Math.max(cl.asc,box.asc);cl.desc=Math.max(cl.desc,box.desc)}
@@ -482,8 +496,9 @@ newPage();let prev=null;
 const drawBox=(b,ox,by,sl,wy)=>{for(const p of b.items){
  if(p.k==='g'){const g=p.g,S=p.S,w=g.w*S,h=g.h*S,X=ox+p.x,gy=by+p.y+wy+sl*(X-m.l)+(g.dy+(g.pb??2))*S-h+BO+p.v;
   ctx.save();if(R){ctx.translate(X+w/2,gy+h);ctx.rotate(p.a);ctx.drawImage(g.img,-w/2,-h,w,h)}else ctx.drawImage(g.img,X,gy,w,h);ctx.restore()}
- else{ctx.save();ctx.strokeStyle='#111';ctx.lineWidth=p.lw;ctx.lineCap=ctx.lineJoin='round';ctx.beginPath();
-  p.pts.forEach(([px,py],j)=>{const X=ox+px,Y=by+py+wy+sl*(X-m.l)+BO;if(j)ctx.lineTo(X,Y);else ctx.moveTo(X,Y)});ctx.stroke();ctx.restore()}
+ else{ctx.save();ctx.strokeStyle='#111';ctx.lineCap=ctx.lineJoin='round';
+  const q=p.pts.map(([px,py])=>{const X=ox+px;return[X,by+py+wy+sl*(X-m.l)+BO]});
+  for(let j=1;j<q.length;j++){ctx.lineWidth=p.ws?p.ws[j]:p.lw;ctx.beginPath();ctx.moveTo(q[j-1][0],q[j-1][1]);ctx.lineTo(q[j][0],q[j][1]);ctx.stroke()}ctx.restore()}
  ctx.canvas.dirty=1}};
 for(const L of lines){
  if(prev){let adv=lh*L.lhf;
