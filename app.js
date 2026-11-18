@@ -394,25 +394,26 @@ const m={t:+$('#mt').value,l:+$('#ml').value,r:+$('#mr').value,b:+$('#mb').value
 const BO=+$('#boff').value||0,ruled=!bgd&&['dotted','lined','grid'].includes(bsel);
 const pages=[],last={},miss=new Set();let ctx,y,x,x0,sl,by;
 // Auf Linien- und Punktpapier bleibt die Schrift exakt auf der Zeile (kein Neigen/Wandern der Zeile).
-const line=()=>{sl=ruled?0:rnd(-1,1)*.006*R;x0=m.l+rnd(0,12)*R;x=x0;by=ruled?0:rnd(-2,2)*R};
+const line=()=>{sl=ruled?0:rnd(-1,1)*.006*R;x0=m.l+rnd(0,.5)*lh*R;x=x0;by=ruled?0:rnd(-2,2)*R};
 const newPage=()=>{const c=document.createElement('canvas');c.width=PW*Q;c.height=PH*Q;pages.push(c);ctx=c.getContext('2d');ctx.scale(Q,Q);ctx.imageSmoothingQuality='high';y=m.t+lh;line()};
 const nl=()=>{y+=ruled?lh:lh*(1+rnd(-.04,.04)*R);if(y>PH-m.b)newPage();else line()};
 const pick=ch=>{const a=V[ch]||V[ch.toLowerCase()]||V[ch.toUpperCase()];if(!a){miss.add(ch);return null}let i=0;if(a.length>1){do i=Math.random()*a.length|0;while(i===last[ch])}last[ch]=i;return a[i]};
 newPage();
 for(const para of $('#txt').value.split('\n')){
 for(const word of para.split(/\s+/).filter(Boolean)){
-const items=[...word].map(c=>({g:pick(c),gp:(3+rnd(-1.5,2.5)*R)*s}));
+const wy=rnd(-1,1)*(ruled?.05:.09)*lh*R;
+const items=[...word].map(c=>({g:pick(c),gp:(3+rnd(-10,16)*R)*s}));
 const adv=o=>(o.g?o.g.w*s:20*s)+o.gp,wd=items.reduce((a,o)=>a+adv(o),0);
 if(x+wd>RM&&x>x0+1)nl();
 for(const o of items){if(o.g){
 // Alle Zeichen erhalten ausschließlich denselben vom Größenregler bestimmten Faktor.
 // Weder Kleinbuchstaben noch Großbuchstaben oder Varianten werden einzeln normiert.
-const w=o.g.w*s,h=o.g.h*s,a=rnd(-3,3)*R*Math.PI/180;
+const w=o.g.w*s,h=o.g.h*s,a=rnd(-9,9)*R*Math.PI/180;
 // Vertikale Verschiebung legt die erkannte Grundlinie bei Unregelmäßigkeit 0
 // exakt auf y. dy korrigiert Unterlängen, ohne die Zeichenhöhe zu verändern.
-const vj=ruled?1:3,gy=y+by+sl*(x-m.l)+(o.g.dy+(o.g.pb??2))*s-h+BO+rnd(-vj,vj)*R*s;
+const vj=(ruled?.07:.12)*lh,gy=y+by+wy+sl*(x-m.l)+(o.g.dy+(o.g.pb??2))*s-h+BO+rnd(-vj,vj)*R;
 ctx.save();
-if(R){ctx.translate(x+w/2,gy+h/2);ctx.rotate(a);ctx.drawImage(o.g.img,-w/2,-h/2,w,h)}
+if(R){ctx.translate(x+w/2,gy+h);ctx.rotate(a);ctx.drawImage(o.g.img,-w/2,-h,w,h)}
 else ctx.drawImage(o.g.img,x,gy,w,h);
 ctx.restore();ctx.canvas.dirty=1}
 x+=adv(o)}
