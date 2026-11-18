@@ -47,3 +47,6 @@ small{color:var(--mut)}
 .chip{cursor:pointer}
 .cellbar{display:flex;margin-top:3px}
 .cellbar button{flex:none;padding:3px 0;font-size:13px;line-height:1.2;border-radius:6px;min-width:0}
+
+.mathbar button{padding:6px 10px;min-width:38px}
+code{background:var(--bg);padding:0 4px;border-radius:4px}

@@ -47,11 +47,11 @@ function setupRangeNumbers(){
 }
 setupRangeNumbers();
 // Einstellungen der Schreiben-Seite werden pro Gerät gemerkt.
-const SET_IDS=['txt','fsel','bsel','size','lh','ws','rnd','col','mt','ml','mr','mb','boff','exportformat'];
+const SET_IDS=['txt','fsel','bsel','size','lh','ws','rnd','col','mt','ml','mr','mb','boff','exportformat','autofrac'];
 let want={},setTm;
 try{want=JSON.parse(localStorage.getItem('hc-settings')||'{}')||{}}catch(e){}
-for(const id of SET_IDS){const el=$('#'+id);if(!el||el.tagName==='SELECT'||want[id]===undefined)continue;el.value=want[id];if(el.type==='range')el.dispatchEvent(new Event('input'))}
-function saveSettings(){clearTimeout(setTm);setTm=setTimeout(()=>{for(const id of SET_IDS){const el=$('#'+id);if(el&&!(el.tagName==='SELECT'&&!el.value))want[id]=el.value}try{localStorage.setItem('hc-settings',JSON.stringify(want))}catch(e){}},300)}
+for(const id of SET_IDS){const el=$('#'+id);if(!el||el.tagName==='SELECT'||want[id]===undefined)continue;if(el.type==='checkbox')el.checked=!!want[id];else el.value=want[id];if(el.type==='range')el.dispatchEvent(new Event('input'))}
+function saveSettings(){clearTimeout(setTm);setTm=setTimeout(()=>{for(const id of SET_IDS){const el=$('#'+id);if(el&&!(el.tagName==='SELECT'&&!el.value))want[id]=el.type==='checkbox'?el.checked:el.value}try{localStorage.setItem('hc-settings',JSON.stringify(want))}catch(e){}},300)}
 for(const id of SET_IDS){const el=$('#'+id);if(el){el.addEventListener('input',saveSettings);el.addEventListener('change',saveSettings)}}
 // Stabilisierung wird pro Gerät gespeichert, ohne die Handschrift-Daten zu verändern.
 try{const settings=JSON.parse(localStorage.getItem('hc-stabilizer')||'{}');
@@ -124,7 +124,7 @@ function missingForText(f,txt){const c=counts(f);return [...new Set([...txt].fil
 ))]}
 function nextMissingTask(f,chars){return f.words.findIndex((w,k)=>chars.includes(w)&&!(f.slots[k]||[])[0]);}
 function beginMissing(){const f=S.fonts.find(x=>x.id==$('#fsel').value);if(!f)return;
- const missing=missingForText(f,$('#txt').value);if(!missing.length){render();return}
+ const missing=missingForText(f,dtext());if(!missing.length){render();return}
  const entries=addMissingToFont(f,missing);if(!entries.length)return;
  missingSession={id:f.id,chars:missing};save();lists();switchTab('fonts');edit(f.id,entries[0].idx);
  $('#msg').textContent='';
@@ -359,6 +359,44 @@ function gnThumbnail(page){const c=document.createElement('canvas');c.width=320;
  const s=Math.min(c.width/page.width,c.height/page.height);g.drawImage(page,(c.width-page.width*s)/2,(c.height-page.height*s)/2,page.width*s,page.height*s);
  return c.toDataURL('image/jpeg',.82);
 }
+
+/* Mathe-Satz: \frac{a}{b}, 1/2, \sqrt{x}, \sqrt[3]{x}, x^2, x_1, Symbole */
+const MSYM={cdot:'·',times:'×',div:'÷',pm:'±',mp:'∓',neq:'≠',ne:'≠',leq:'≤',le:'≤',geq:'≥',ge:'≥',approx:'≈',infty:'∞',pi:'π',alpha:'α',beta:'β',gamma:'γ',delta:'δ',Delta:'Δ',theta:'θ',lambda:'λ',mu:'μ',sigma:'σ',omega:'ω',Omega:'Ω',phi:'φ',sum:'∑',prod:'∏',int:'∫',to:'→',rightarrow:'→',leftarrow:'←',Rightarrow:'⇒',Leftrightarrow:'⇔',degree:'°',ldots:'…',cdots:'…'};
+const SUPD={'⁰':'0','¹':'1','²':'2','³':'3','⁴':'4','⁵':'5','⁶':'6','⁷':'7','⁸':'8','⁹':'9'},VULG={'½':[1,2],'¼':[1,4],'¾':[3,4],'⅓':[1,3],'⅔':[2,3]};
+const chs=t=>[...t].map(c=>({t:'ch',c}));
+function mparse(src,auto){let i=0;const isAl=c=>/[\p{L}\p{N}]/u.test(c||'');
+ const closeAt=o=>{let d=0;for(let j=o;j<src.length;j++){if(src[j]==='(')d++;else if(src[j]===')'&&--d===0)return j}return -1};
+ function seq(stop){const o=[];while(i<src.length&&src[i]!==stop)o.push(atom());return o}
+ function arg(){while(src[i]===' ')i++;if(src[i]==='{'){i++;const n=seq('}');if(src[i]==='}')i++;return n}
+  if(i>=src.length)return[];const o=[];if((src[i]==='-'||src[i]==='+')&&isAl(src[i+1])){o.push({t:'ch',c:src[i]});i++}o.push(base());return o}
+ function base(){const c=src[i];
+  if(/\s/.test(c)){i++;return{t:'sp'}}
+  if(c==='\\'){let j=i+1;if(/[a-zA-Z]/.test(src[j]||''))while(/[a-zA-Z]/.test(src[j]||''))j++;else j++;const name=src.slice(i+1,j);i=j;
+   if(/^[dt]?frac$/.test(name)){const n=arg(),d=arg();return{t:'frac',n,d}}
+   if(name==='sqrt'){let idx=null;if(src[i]==='['){const e=src.indexOf(']',i);if(e>0){idx=mparse(src.slice(i+1,e),false);i=e+1}}return{t:'sqrt',b:arg(),idx}}
+   if(name==='text'||name==='mathrm')return{t:'grp',n:arg()};
+   if(name==='left'||name==='right')return{t:'nop'};
+   if(/^(quad|qquad|space|[,;:! ])$/.test(name))return{t:'gap'};
+   if(MSYM[name])return{t:'ch',c:MSYM[name]};
+   return name.length===1?{t:'ch',c:name}:{t:'grp',n:chs(name)}}
+  if(c==='{'){i++;const n=seq('}');if(src[i]==='}')i++;return{t:'grp',n}}
+  if(c==='√'){i++;if(src[i]==='('){const e=closeAt(i);if(e>0){const n=mparse(src.slice(i+1,e),auto);i=e+1;return{t:'sqrt',b:n,idx:null}}}
+   const m=/^\d+(?:[.,]\d+)?|^\p{L}/u.exec(src.slice(i));if(m){i+=m[0].length;return{t:'sqrt',b:chs(m[0]),idx:null}}return{t:'ch',c:'√'}}
+  if(VULG[c]){i++;return{t:'frac',n:chs(''+VULG[c][0]),d:chs(''+VULG[c][1])}}
+  if(auto&&/\d/.test(c)&&!/[\p{L}\p{N}.,\/]/u.test(src[i-1]||'')){const m=/^(\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)(?![\p{L}\p{N}\/])/u.exec(src.slice(i));if(m){i+=m[0].length;return{t:'frac',n:chs(m[1]),d:chs(m[2])}}}
+  const cp=String.fromCodePoint(src.codePointAt(i));i+=cp.length;return{t:'ch',c:cp}}
+ function atom(){const n=base();if(n.t==='sp')return n;
+  for(;;){const c=src[i],nx=src[i+1];
+   if((c==='^'&&nx!==undefined&&(isAl(nx)||'{-+\\'.includes(nx)))||(c==='_'&&nx!==undefined&&(isAl(nx)||'{\\'.includes(nx)))){i++;const a=arg();if(c==='^')n.sup=(n.sup||[]).concat(a);else n.sub=(n.sub||[]).concat(a);continue}
+   if(c&&SUPD[c]){i++;n.sup=(n.sup||[]).concat([{t:'ch',c:SUPD[c]}]);continue}
+   break}
+  return n}
+ return seq(null)}
+function mchars(txt,auto){let out='';const w=ns=>{for(const n of ns||[]){if(n.t==='ch')out+=n.c;for(const k of['n','d','b','idx','sup','sub'])if(n[k])w(n[k])}};for(const p of txt.split('\n'))w(mparse(p,auto));return out}
+const dtext=()=>mchars($('#txt').value,$('#autofrac').checked);
+$('#mathbar').onmousedown=e=>e.preventDefault();
+$('#mathbar').onclick=e=>{const b=e.target.closest('button');if(!b)return;const t=$('#txt'),ins=b.dataset.i,st=t.selectionStart,en=t.selectionEnd,sel=t.value.slice(st,en),k=ins.indexOf('▮'),text=ins.replace('▮',k>=0?sel:''),pos=st+(k>=0?k+sel.length:text.length);
+ t.setRangeText(text,st,en,'end');t.focus();t.setSelectionRange(pos,pos);t.dispatchEvent(new Event('input',{bubbles:true}))};
 /* Rendern */
 const IC={};
 async function variants(f){const V={};for(const[k,w]of f.words.entries()){const s=f.slots[k];if(!s)continue;for(const[j,ch]of[...w].entries()){const g=s[j];if(!g)continue;IC[g.d]=IC[g.d]||await loadImg(g.d);if(IC[g.d])(V[ch]=V[ch]||[]).push({...g,img:IC[g.d]})}}return V}
@@ -386,39 +424,73 @@ GN_PAGES=[];const btn=$('#go'),out=$('#pages');$('#exportbar').classList.add('hi
 try{
 await ready;const f=[...BI,...S.fonts].find(x=>x.id==$('#fsel').value);
 if(!f){out.textContent='Bitte zuerst unter „Handschriften“ eine Handschrift anlegen.';return}
-const V=await variants(f);if(!Object.keys(V).length){out.textContent='Diese Handschrift enthält noch keine Zeichen.';if(!f.builtin)showMissing(f,missingForText(f,$('#txt').value));return}
+const V=await variants(f);if(!Object.keys(V).length){out.textContent='Diese Handschrift enthält noch keine Zeichen.';if(!f.builtin)showMissing(f,missingForText(f,dtext()));return}
 const bsel=$('#bsel').value,bgd=S.bgs.find(b=>b.id==bsel),bgImg=bgd?await loadImg(bgd.d):null;
 const PH=bgImg?Math.round(PW*bgImg.height/bgImg.width):1754;
 const s=+$('#size').value/100,lh=CH*s*$('#lh').value/100,R=+$('#rnd').value/100,wsb=+$('#ws').value/100;
 const m={t:+$('#mt').value,l:+$('#ml').value,r:+$('#mr').value,b:+$('#mb').value},RM=PW-m.r;
 const BO=+$('#boff').value||0,ruled=!bgd&&['dotted','lined','grid'].includes(bsel);
-const pages=[],last={},miss=new Set();let ctx,y,x,x0,sl,by;
-// Auf Linien- und Punktpapier bleibt die Schrift exakt auf der Zeile (kein Neigen/Wandern der Zeile).
-const line=()=>{sl=ruled?0:rnd(-1,1)*.006*R;x0=m.l+rnd(0,.5)*lh*R;x=x0;by=ruled?0:rnd(-2,2)*R};
-const newPage=()=>{const c=document.createElement('canvas');c.width=PW*Q;c.height=PH*Q;pages.push(c);ctx=c.getContext('2d');ctx.scale(Q,Q);ctx.imageSmoothingQuality='high';y=m.t+lh;line()};
-const nl=()=>{y+=ruled?lh:lh*(1+rnd(-.04,.04)*R);if(y>PH-m.b)newPage();else line()};
+const pages=[],last={},miss=new Set();let ctx,y;
+const newPage=()=>{const c=document.createElement('canvas');c.width=PW*Q;c.height=PH*Q;pages.push(c);ctx=c.getContext('2d');ctx.scale(Q,Q);ctx.imageSmoothingQuality='high';y=m.t+lh};
 const pick=ch=>{const a=V[ch]||V[ch.toLowerCase()]||V[ch.toUpperCase()];if(!a){miss.add(ch);return null}let i=0;if(a.length>1){do i=Math.random()*a.length|0;while(i===last[ch])}last[ch]=i;return a[i]};
-newPage();
+// Boxen: Maße relativ zur Grundlinie (y positiv = nach unten). Zeichen behalten immer ihre Größe (nur Unter-/Hochzahlen sind kleiner).
+const vjb=(ruled?.07:.12)*lh;
+const mv=(b,dx,dy)=>b.items.map(p=>p.k==='g'?{...p,x:p.x+dx,y:p.y+dy}:{...p,pts:p.pts.map(q=>[q[0]+dx,q[1]+dy])});
+const mbox=(nodes,sc)=>{let x=0,asc=0,desc=0,math=false;const items=[],S=s*sc,lw=Math.max(1.3,5*s*Math.max(sc,.75));
+ const put=(b,dx,dy)=>{items.push(...mv(b,dx,dy));asc=Math.max(asc,b.asc-dy);desc=Math.max(desc,b.desc+dy);if(b.math)math=true};
+ for(const n of nodes){
+  if(n.t==='sp'){x+=60*S*wsb;continue}
+  if(n.t==='gap'){x+=18*S;continue}
+  if(n.t==='nop')continue;
+  let nb,gp=0;
+  if(n.t==='ch'){const g=pick(n.c);gp=(3+rnd(-10,16)*R)*S;
+   if(g){const pb=g.pb??2;nb={w:g.w*S,asc:Math.max(0,(g.h-g.dy-pb)*S),desc:Math.max(0,(g.dy+pb)*S),items:[{k:'g',g,x:0,y:0,S,a:rnd(-9,9)*R*Math.PI/180,v:rnd(-vjb,vjb)*sc*R}]}}
+   else nb={w:20*S,asc:0,desc:0,items:[]}}
+  else if(n.t==='grp')nb=mbox(n.n,sc);
+  else if(n.t==='frac'){const f=sc*.85,a=mbox(n.n,f),d=mbox(n.d,f),ax=.5*TX*S,gap=6*S,pad=4*S,w=Math.max(a.w,d.w)+2*pad,wob=()=>rnd(-1,1)*R*S*1.2;
+   nb={w,asc:ax+gap+a.desc+a.asc,desc:Math.max(0,d.asc+d.desc+gap-ax),math:true,items:[{k:'l',lw,pts:[[0,-ax+wob()],[w/2,-ax+wob()],[w,-ax+wob()]]}]};
+   nb.items.push(...mv(a,(w-a.w)/2,-(ax+gap+a.desc)),...mv(d,(w-d.w)/2,-ax+gap+d.asc))}
+  else if(n.t==='sqrt'){const b=mbox(n.b,sc),yt=-(b.asc+4*S),yb=b.desc+2*S,h=yb-yt,sw=Math.min(28*S,Math.max(10*S,.45*h));let ib=null,sx=0;
+   if(n.idx){ib=mbox(n.idx,sc*.5);sx=Math.max(0,ib.w-.3*sw)}
+   const E=sx+sw+b.w+5*S;
+   nb={w:E,asc:-yt,desc:yb,math:true,items:[{k:'l',lw,pts:[[sx,yt+.62*h],[sx+.1*sw,yt+.55*h],[sx+.32*sw,yb],[sx+sw,yt],[E,yt]]}]};
+   nb.items.push(...mv(b,sx+sw+2*S,0));if(ib)nb.items.push(...mv(ib,0,yt+.5*h))}
+  else continue;
+  put(nb,x,0);let adv=nb.w;
+  if(n.sup||n.sub){math=true;const S2=sc*.65,sb=n.sup&&mbox(n.sup,S2),bb=n.sub&&mbox(n.sub,S2),sx=x+nb.w+S;
+   if(sb)put(sb,sx,-Math.max(.5*TA*S,nb.asc*.6));
+   if(bb)put(bb,sx,Math.max(.22*TA*S,nb.desc*.5+.1*TA*S));
+   adv=nb.w+S+Math.max(sb?sb.w:0,bb?bb.w:0)}
+  x+=adv+gp}
+ return{w:x,asc,desc,items,math}};
+// Phase 1: Wörter (und Formeln) in Zeilen umbrechen
+const lines=[];let cl,x,x0;
+const newLine=()=>{cl={words:[],sl:ruled?0:rnd(-1,1)*.006*R,by:ruled?0:rnd(-2,2)*R,lhf:ruled?1:1+rnd(-.04,.04)*R,asc:0,desc:0,math:false};x0=m.l+rnd(0,.5)*lh*R;x=x0};
+const fin=()=>{lines.push(cl);newLine()};
+newLine();
+const auto=$('#autofrac').checked;
 for(const para of $('#txt').value.split('\n')){
-for(const word of para.split(/\s+/).filter(Boolean)){
-const wy=rnd(-1,1)*(ruled?.05:.09)*lh*R;
-const items=[...word].map(c=>({g:pick(c),gp:(3+rnd(-10,16)*R)*s}));
-const adv=o=>(o.g?o.g.w*s:20*s)+o.gp,wd=items.reduce((a,o)=>a+adv(o),0);
-if(x+wd>RM&&x>x0+1)nl();
-for(const o of items){if(o.g){
-// Alle Zeichen erhalten ausschließlich denselben vom Größenregler bestimmten Faktor.
-// Weder Kleinbuchstaben noch Großbuchstaben oder Varianten werden einzeln normiert.
-const w=o.g.w*s,h=o.g.h*s,a=rnd(-9,9)*R*Math.PI/180;
-// Vertikale Verschiebung legt die erkannte Grundlinie bei Unregelmäßigkeit 0
-// exakt auf y. dy korrigiert Unterlängen, ohne die Zeichenhöhe zu verändern.
-const vj=(ruled?.07:.12)*lh,gy=y+by+wy+sl*(x-m.l)+(o.g.dy+(o.g.pb??2))*s-h+BO+rnd(-vj,vj)*R;
-ctx.save();
-if(R){ctx.translate(x+w/2,gy+h);ctx.rotate(a);ctx.drawImage(o.g.img,-w/2,-h,w,h)}
-else ctx.drawImage(o.g.img,x,gy,w,h);
-ctx.restore();ctx.canvas.dirty=1}
-x+=adv(o)}
-x+=60*s*wsb*(1+rnd(-.45,.8)*R*1.3)}
-nl()}
+ const words=[[]];for(const n of mparse(para,auto)){if(n.t==='sp')words.push([]);else words[words.length-1].push(n)}
+ for(const nodes of words){if(!nodes.length)continue;
+  const wy=rnd(-1,1)*(ruled?.05:.09)*lh*R,box=mbox(nodes,1);
+  if(x+box.w>RM&&x>x0+1)fin();
+  cl.words.push({box,x,wy});if(box.math){cl.math=true;cl.asc=Math.max(cl.asc,box.asc);cl.desc=Math.max(cl.desc,box.desc)}
+  x+=box.w+60*s*wsb*(1+rnd(-.45,.8)*R*1.3)}
+ fin()}
+// Phase 2: Zeilen auf die Seiten setzen. Formelzeilen bekommen bei Bedarf mehr Platz (auf Linienpapier ganze Zeilen).
+newPage();let prev=null;
+const drawBox=(b,ox,by,sl,wy)=>{for(const p of b.items){
+ if(p.k==='g'){const g=p.g,S=p.S,w=g.w*S,h=g.h*S,X=ox+p.x,gy=by+p.y+wy+sl*(X-m.l)+(g.dy+(g.pb??2))*S-h+BO+p.v;
+  ctx.save();if(R){ctx.translate(X+w/2,gy+h);ctx.rotate(p.a);ctx.drawImage(g.img,-w/2,-h,w,h)}else ctx.drawImage(g.img,X,gy,w,h);ctx.restore()}
+ else{ctx.save();ctx.strokeStyle='#111';ctx.lineWidth=p.lw;ctx.lineCap=ctx.lineJoin='round';ctx.beginPath();
+  p.pts.forEach(([px,py],j)=>{const X=ox+px,Y=by+py+wy+sl*(X-m.l)+BO;if(j)ctx.lineTo(X,Y);else ctx.moveTo(X,Y)});ctx.stroke();ctx.restore()}
+ ctx.canvas.dirty=1}};
+for(const L of lines){
+ if(prev){let adv=lh*L.lhf;
+  if(L.math||prev.math){const need=prev.desc+Math.max(L.asc,TA*s)+.1*lh;adv=ruled?lh*Math.max(1,Math.ceil(need/lh-.3)):Math.max(adv,need)}
+  y+=adv;if(y>PH-m.b)newPage()}
+ for(const w of L.words)drawBox(w.box,w.x,y+L.by,L.sl,w.wy);
+ prev=L}
 const col=$('#col').value;
 for(const ic of pages.filter(p=>p.dirty)){
 const ig=ic.getContext('2d');ig.globalCompositeOperation='source-in';ig.fillStyle=col;ig.fillRect(0,0,PW,PH);
@@ -436,7 +508,7 @@ function imp(txt){try{const d=JSON.parse(txt);let n=0;for(const f of d.fonts||[]
 $('#im').onclick=()=>imp($('#bk').value);
 $('#imf').onchange=async e=>{const f=e.target.files[0];if(f)imp(await f.text());e.target.value=''};
 /* Eingebaute junge Handschriften: Glyphen aus Schreibschrift-Fonts mit leichter Zufallsvariation */
-const BI=[];
+const BI=[],EXTRA='+=*/%<>#×÷±≠≤≥≈·∞π°→',ALLB=CHARS+EXTRA;
 const FONTS=[['bi-indie','Jung – rund (eingebaut)','Indie Flower',112],['bi-caveat','Jung – flott (eingebaut)','Caveat',130,1],['bi-messy','Unordentlich (eingebaut)','Reenie Beanie',150,2.6]];
 function mkGlyph(ch,fam,px,j=1){const W=260,H=300,B=190,c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
 g.translate(50,B+rnd(-5,5)*(j-1));g.rotate(rnd(-.05,.05)*j);g.transform(1,0,rnd(-.12,.04)*j,1,0,0);const k=1+rnd(-.05,.05)*j;g.scale(k,k*(1+rnd(-.04,.04)*j));
@@ -448,7 +520,7 @@ const w=x1-x0+1,h=y1-y0+1,o=document.createElement('canvas');o.width=w;o.height=
 return{d:o.toDataURL(),w,h,dy:y0+h-B,pb:0}}
 const ready=(async()=>{
 try{await Promise.race([Promise.all(FONTS.map(f=>document.fonts.load(`${f[3]}px "${f[2]}"`,CHARS))),new Promise(r=>setTimeout(r,5000))])}catch(e){}
-for(const[id,name,fam,px,j]of FONTS){const words=[],slots={};for(let v=0;v<5;v++){words.push(CHARS);slots[v]=[...CHARS].map(ch=>mkGlyph(ch,fam,px,j))}BI.push({id,name,builtin:1,words,slots})}
+for(const[id,name,fam,px,j]of FONTS){const words=[],slots={};for(let v=0;v<5;v++){words.push(ALLB);slots[v]=[...ALLB].map(ch=>mkGlyph(ch,fam,px,j))}BI.push({id,name,builtin:1,words,slots})}
 lists()})();
 loadDB().then(lists);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Handschrift Converter 3.1</title>
+<title>Handschrift Converter 3.2</title>
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#2f4cb5" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1b1b1d" media="(prefers-color-scheme: dark)">
@@ -21,7 +21,10 @@
 
 <section id="write">
 <div class="card">
+<div class="row mathbar" id="mathbar" aria-label="Mathe-Hilfen"><button type="button" data-i="\frac{▮}{}">Bruch</button><button type="button" data-i="\sqrt{▮}">Wurzel</button><button type="button" data-i="^{▮}">Hoch</button><button type="button" data-i="_{▮}">Tief</button><button type="button" data-i="×">×</button><button type="button" data-i="÷">÷</button><button type="button" data-i="±">±</button><button type="button" data-i="≠">≠</button><button type="button" data-i="≤">≤</button><button type="button" data-i="≥">≥</button><button type="button" data-i="≈">≈</button><button type="button" data-i="π">π</button><button type="button" data-i="∞">∞</button><button type="button" data-i="°">°</button><button type="button" data-i="→">→</button></div>
+<small>Brüche: <code>\frac{oben}{unten}</code> oder einfach <code>3/4</code> · Wurzel: <code>\sqrt{x}</code> oder <code>√9</code> · Hoch: <code>x^2</code> · Tief: <code>x_1</code> · ², ³, ½, ¾ werden automatisch umgesetzt.</small>
 <textarea id="txt"></textarea>
+<label class="checkline"><input type="checkbox" id="autofrac" checked> Zahlenbrüche wie 3/4 automatisch als Bruch setzen</label>
 <div class="grid">
 <label>Handschrift<select id="fsel"></select></label>
 <label>Hintergrund<select id="bsel"></select></label>
