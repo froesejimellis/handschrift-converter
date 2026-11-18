@@ -73,7 +73,7 @@ fs.innerHTML=[...BI,...S.fonts].map(f=>`<option value="${f.id}">${esc(f.name)}</
 bs.innerHTML=[['dotted','Gepunktet'],['plain','Weiß'],['lined','Liniert'],['grid','Kariert'],...S.bgs.map(b=>[b.id,b.name])].map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('');
 if(hasOpt(fs,want.fsel))fs.value=want.fsel;else if(hasOpt(fs,pf))fs.value=pf;
 if(hasOpt(bs,want.bsel))bs.value=want.bsel;else if(hasOpt(bs,pb))bs.value=pb;else bs.value='dotted';
-$('#flist').innerHTML=S.fonts.map(f=>`<div class="row"><b>${esc(f.name)}</b><small>${done(f)} von ${total(f)} Zeichen geschrieben</small><button data-a="edit" data-id="${f.id}">Weiterschreiben</button><button data-a="rename" data-id="${f.id}">Umbenennen</button><button data-a="del" data-id="${f.id}">Löschen</button></div>`).join('')||'<small>Noch keine Handschrift angelegt.</small>';
+$('#flist').innerHTML=S.fonts.map(f=>`<div class="row"><b>${esc(f.name)}</b><small>${done(f)} von ${total(f)} Zeichen geschrieben</small><button data-a="edit" data-id="${f.id}">Weiterschreiben</button><button data-a="math" data-id="${f.id}">Bruchstrich &amp; Wurzel zeichnen</button><button data-a="rename" data-id="${f.id}">Umbenennen</button><button data-a="del" data-id="${f.id}">Löschen</button></div>`).join('')||'<small>Noch keine Handschrift angelegt.</small>';
 $('#blist').innerHTML=S.bgs.map(b=>`<div><img class="th" src="${b.d}"><br><small>${esc(b.name)}</small><br><button data-ba="rename" data-bid="${b.id}">Umbenennen</button><button data-ba="del" data-bid="${b.id}">Löschen</button></div>`).join('')}
 $('#flist').onclick=e=>{const b=e.target.closest('button');if(!b)return;
 if(b.dataset.a=='edit')edit(b.dataset.id);
@@ -84,6 +84,7 @@ if(name===null)return;
 if(!name.trim()){alert('Bitte einen Namen eingeben.');return}
 f.name=name.trim();save();lists();
 }
+else if(b.dataset.a=='math'){const f=S.fonts.find(x=>x.id==b.dataset.id);if(!f)return;const k=addMathGlyphs(f);save();lists();edit(f.id,k)}
 else if(b.dataset.arm){S.fonts=S.fonts.filter(f=>f.id!=b.dataset.id);if(ed&&ed.f.id==b.dataset.id){ed=null;$('#ed').classList.add('hide')}save();lists()}
 else{b.dataset.arm=1;b.textContent='Wirklich löschen?';setTimeout(()=>{delete b.dataset.arm;b.textContent='Löschen'},4000)}};
 $('#blist').onclick=e=>{const b=e.target.closest('button');if(!b)return;
@@ -105,6 +106,9 @@ const XS='aceimnorsuvwxzäöü',DS='gjpqy',TS='bdfhklABCDEFGHIJKLMNOPQRSTUVWXYZ�
 function edit(id,startingIndex=null){const f=S.fonts.find(x=>x.id==id);if(!f)return;const i=f.words.findIndex((w,k)=>!f.slots[k]);ed={f,i:startingIndex===null?(i<0?0:i):startingIndex,st:[]};$('#ed').classList.remove('hide');show();$('#ed').scrollIntoView()}
 // Sonderzeichen erhalten genauso wie Buchstaben drei unabhängig gespeicherte Schreibproben.
 const isSpecial=ch=>/[\p{P}\p{S}]/u.test(ch);
+// Eigener Bruchstrich (―) und eigene Wurzel (√): je zwei Schreibproben, werden beim Umwandeln automatisch verlängert.
+function addMathGlyphs(f){for(const ch of ['―','√']){let have=f.words.filter(w=>w===ch).length;while(have<2){f.words.push(ch);have++}}
+ const k=f.words.findIndex((w,i)=>(w==='―'||w==='√')&&!f.slots[i]);return k<0?f.words.indexOf('―'):k}
 function addMissingToFont(f,chars){
  const entries=[];
  for(const ch of new Set(chars)){
@@ -148,7 +152,8 @@ function layout(){if(!ed)return;const n=[...ed.f.words[ed.i]].length,avail=$('#w
 function relayout(){if(!ed||$('#ed').classList.contains('hide'))return;const w=$('#writing-scroll').clientWidth;if(w===ed.avail)return;layout();guides();drawSaved()}
 window.addEventListener('resize',relayout);if(window.ResizeObserver)new ResizeObserver(relayout).observe($('#writing-scroll'));
 function head(){const{f,i}=ed,ch=f.words[i],special=isSpecial(ch)&&[...ch].length===1;const variant=special?f.words.slice(0,i+1).filter(w=>w===ch).length:0;
-$('#wt').textContent=`${special?'Sonderzeichen '+ch+' – Variante '+variant+' von '+Math.max(3,f.words.filter(w=>w===ch).length):'Wort '+(i+1)+' von '+f.words.length+': '+ch}${f.slots[i]?'  (✓ gespeichert – nur neu geschriebene Zeichen ersetzen die alten)':''}`;
+const hint={'―':'Bruchstrich – einen waagerechten Strich ziehen (Länge egal, wird später automatisch verlängert)','√':'Wurzel – Wurzelzeichen zeichnen und den Strich oben nach rechts ziehen (wird später automatisch bis zum Ende der Zahl verlängert)'}[ch];
+$('#wt').textContent=hint?`${hint} – Variante ${variant} von ${Math.max(2,f.words.filter(w=>w===ch).length)}${f.slots[i]?'  (✓ gespeichert)':''}`:`${special?'Sonderzeichen '+ch+' – Variante '+variant+' von '+Math.max(3,f.words.filter(w=>w===ch).length):'Wort '+(i+1)+' von '+f.words.length+': '+ch}${f.slots[i]?'  (✓ gespeichert – nur neu geschriebene Zeichen ersetzen die alten)':''}`;
 $('#wj').innerHTML=f.words.map((x,k)=>`<option value="${k}">${f.slots[k]?'✓ ':''}${k+1}. ${esc(x)}</option>`).join('');$('#wj').value=i}
 function show(){const{f,i}=ed,n=[...f.words[i]].length;ed.st=[];
 ink.width=gd.width=n*CW*K;ink.height=gd.height=CH*K;
@@ -446,7 +451,15 @@ const hand=(pts,lw,S)=>{const out=[],ws=[],ph=rnd(0,6);
  for(let k=0;k<pts.length-1;k++){const[x1,y1]=pts[k],[x2,y2]=pts[k+1],dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len,n=Math.max(2,Math.round(len/(5*S))),bow=rnd(-1,1)*len*.022;
   for(let j=k?1:0;j<=n;j++){const t=j/n,e=(j===0||j===n)?.3:1,o=bow*Math.sin(Math.PI*t)+rnd(-1,1)*(1.1+1.4*R)*S*e;out.push([x1+dx*t+nx*o,y1+dy*t+ny*o]);ws.push(lw*(.9+.2*Math.sin(ph+out.length*.8)))}}
  return{k:'l',pts:out,ws,lw}};
-const mv=(b,dx,dy)=>b.items.map(p=>p.k==='g'?{...p,x:p.x+dx,y:p.y+dy}:{...p,pts:p.pts.map(q=>[q[0]+dx,q[1]+dy])});
+const mv=(b,dx,dy)=>b.items.map(p=>p.pts?{...p,pts:p.pts.map(q=>[q[0]+dx,q[1]+dy])}:{...p,x:p.x+dx,y:p.y+dy});
+const pickOpt=ch=>{const a=V[ch];return a?a[Math.random()*a.length|0]:null};
+const sqInfo=g=>{const im=g.img;if(im._si)return im._si;const W=im.naturalWidth,H=im.naturalHeight,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(im,0,0);const d=x.getImageData(0,0,W,H).data;
+ let y0=0;find:for(let yy=0;yy<H;yy++)for(let xx=0;xx<W;xx++)if(d[(yy*W+xx)*4+3]>100){y0=yy;break find}
+ const bt=Math.max(3,Math.round(H*.08));let xmin=W,xmax=0;for(let yy=y0;yy<Math.min(H,y0+bt);yy++)for(let xx=0;xx<W;xx++)if(d[(yy*W+xx)*4+3]>100){if(xx<xmin)xmin=xx;if(xx>xmax)xmax=xx}
+ if(xmax<xmin){xmin=0;xmax=W-1}
+ // xa: ab hier beginnt das gerade Strichstück (Wurzel-Dach); xb: davor endet die Wiederholung, danach kommt das Strichende.
+ const span=xmax-xmin;let xa=xmin+Math.max(6,Math.round(span*.4));xa=Math.max(0,Math.min(xa,W-4));const cap=Math.max(1,Math.min(12,Math.round((W-xa)*.2)));const xb=Math.max(xa+2,Math.min(W-1,W-cap));
+ return im._si={xmin:Math.min(xmin,xa),xa,xb}};
 const mbox=(nodes,sc)=>{let x=0,asc=0,desc=0,math=false;const items=[],S=s*sc,lw=Math.max(1.2,PEN*s*Math.max(sc,.8));
  const put=(b,dx,dy)=>{items.push(...mv(b,dx,dy));asc=Math.max(asc,b.asc-dy);desc=Math.max(desc,b.desc+dy);if(b.math)math=true};
  for(const n of nodes){
@@ -462,8 +475,14 @@ const mbox=(nodes,sc)=>{let x=0,asc=0,desc=0,math=false;const items=[],S=s*sc,lw
    else nb={w:20*S,asc:0,desc:0,items:[]}}
   else if(n.t==='grp')nb=mbox(n.n,sc);
   else if(n.t==='frac'){const f=sc*.85,a=mbox(n.n,f),d=mbox(n.d,f),ax=.5*TX*S,gap=6*S,pad=4*S,w=Math.max(a.w,d.w)+2*pad,wob=0;
-   nb={w,asc:ax+gap+a.desc+a.asc,desc:Math.max(0,d.asc+d.desc+gap-ax),math:true,items:[hand([[rnd(0,1.5)*S,-ax+rnd(-1.8,1.8)*S*(1+R)],[w-rnd(0,1.5)*S,-ax+rnd(-1.8,1.8)*S*(1+R)]],lw,S)]};
+   nb={w,asc:ax+gap+a.desc+a.asc,desc:Math.max(0,d.asc+d.desc+gap-ax),math:true,items:[V['―']?(()=>{const bv=pickOpt('―');return{k:'bar',g:bv,x:0,y:-ax+rnd(-1,1)*R*S,w,f:bv.w/bv.img.naturalWidth*S}})():hand([[rnd(0,1.5)*S,-ax+rnd(-1.8,1.8)*S*(1+R)],[w-rnd(0,1.5)*S,-ax+rnd(-1.8,1.8)*S*(1+R)]],lw,S)]};
    nb.items.push(...mv(a,(w-a.w)/2,-(ax+gap+a.desc)),...mv(d,(w-d.w)/2,-ax+gap+d.asc))}
+  else if(n.t==='sqrt'&&V['√']){const rv=pickOpt('√'),W=rv.img.naturalWidth,H=rv.img.naturalHeight,si=sqInfo(rv),b=mbox(n.b,sc),need=b.asc+b.desc+6*S,k=Math.min(2.5,Math.max(1,need/(rv.h*S))),f=rv.w/W*S*k,gh=H*f,yb=b.desc+2*S;
+   let ib=null,sx=0;if(n.idx){ib=mbox(n.idx,sc*.5);sx=Math.max(0,ib.w-.3*si.xmin*f)}
+   const rx=sx+si.xmin*f+2*S,E=rx+b.w+4*S;
+   // Das Wurzelzeichen bleibt unverzerrt; nur das gerade Dach wird bis zum Ende des Ausdrucks verlängert.
+   nb={w:E,asc:Math.max(gh-yb,b.asc),desc:Math.max(yb,0),math:true,items:[{k:'rad',g:rv,si,x:sx,y:yb,f,tot:E-sx}]};
+   nb.items.push(...mv(b,rx,0));if(ib)nb.items.push(...mv(ib,0,yb-gh+.5*gh))}
   else if(n.t==='sqrt'){const b=mbox(n.b,sc),yt=-(b.asc+4*S),yb=b.desc+2*S,h=yb-yt,sw=Math.min(28*S,Math.max(10*S,.45*h));let ib=null,sx=0;
    if(n.idx){ib=mbox(n.idx,sc*.5);sx=Math.max(0,ib.w-.3*sw)}
    const E=sx+sw+b.w+5*S;
@@ -493,9 +512,24 @@ for(const para of $('#txt').value.split('\n')){
  fin()}
 // Phase 2: Zeilen auf die Seiten setzen. Formelzeilen bekommen bei Bedarf mehr Platz (auf Linienpapier ganze Zeilen).
 newPage();let prev=null;
+// Verlängern ohne Verzerren: Strichenden bleiben, das Mittelstück wird (abwechselnd gespiegelt) wiederholt.
+const slice=(im,sx,sw,H,dx,top,tw,dh,flip)=>{if(flip){ctx.save();ctx.translate(dx+tw,top);ctx.scale(-1,1);ctx.drawImage(im,sx,0,sw,H,0,0,tw,dh);ctx.restore()}else ctx.drawImage(im,sx,0,sw,H,dx,top,tw,dh)};
+const drawBar=(p,X,Y)=>{const im=p.g.img,W=im.naturalWidth,H=im.naturalHeight,f=p.f,dh=H*f,top=Y-dh/2,cap=Math.min(Math.round(W*.15),16),cw=cap*f,end=X+p.w;
+ if(p.w<=2*cw){ctx.drawImage(im,0,0,W,H,X,top,p.w,dh);return}
+ ctx.drawImage(im,0,0,cap,H,X,top,cw,dh);
+ const L=W-2*cap,midEnd=end-cw;let dx=X+cw,flip=false;
+ while(dx<midEnd-.01){const tw=Math.min(L*f,midEnd-dx),sw=tw/f;slice(im,flip?cap+L-sw:cap,sw,H,dx,top,tw,dh,flip);dx+=tw;flip=!flip}
+ ctx.drawImage(im,W-cap,0,cap,H,end-cw,top,cw,dh);ctx.canvas.dirty=1};
+const drawRad=(p,X,Y)=>{const im=p.g.img,W=im.naturalWidth,H=im.naturalHeight,f=p.f,dh=H*f,top=Y-dh,i=p.si,end=X+p.tot,capW=(W-i.xb)*f;
+ ctx.drawImage(im,0,0,i.xa,H,X,top,i.xa*f,dh);
+ let dx=X+i.xa*f;const midEnd=Math.max(dx,end-capW),L=i.xb-i.xa;let flip=false;
+ while(dx<midEnd-.01){const tw=Math.min(L*f,midEnd-dx),sw=tw/f;slice(im,flip?i.xb-sw:i.xa,sw,H,dx,top,tw,dh,flip);dx+=tw;flip=!flip}
+ const cw=Math.min(capW,Math.max(0,end-dx));if(cw>0)ctx.drawImage(im,i.xb,0,cw/f,H,dx,top,cw,dh);ctx.canvas.dirty=1};
 const drawBox=(b,ox,by,sl,wy)=>{for(const p of b.items){
  if(p.k==='g'){const g=p.g,S=p.S,w=g.w*S,h=g.h*S,X=ox+p.x,gy=by+p.y+wy+sl*(X-m.l)+(g.dy+(g.pb??2))*S-h+BO+p.v;
   ctx.save();if(R){ctx.translate(X+w/2,gy+h);ctx.rotate(p.a);ctx.drawImage(g.img,-w/2,-h,w,h)}else ctx.drawImage(g.img,X,gy,w,h);ctx.restore()}
+ else if(p.k==='bar'){drawBar(p,ox+p.x,by+p.y+wy+sl*(ox+p.x-m.l)+BO)}
+ else if(p.k==='rad'){drawRad(p,ox+p.x,by+p.y+wy+sl*(ox+p.x-m.l)+BO)}
  else{ctx.save();ctx.strokeStyle='#111';ctx.lineCap=ctx.lineJoin='round';
   const q=p.pts.map(([px,py])=>{const X=ox+px;return[X,by+py+wy+sl*(X-m.l)+BO]});
   for(let j=1;j<q.length;j++){ctx.lineWidth=p.ws?p.ws[j]:p.lw;ctx.beginPath();ctx.moveTo(q[j-1][0],q[j-1][1]);ctx.lineTo(q[j][0],q[j][1]);ctx.stroke()}ctx.restore()}
